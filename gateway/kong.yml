@@ -1,0 +1,122 @@
+_format_version: "3.0"
+
+services:
+  # ==========================================
+  # Service 1: GitHub Gists
+  # ==========================================
+  - name: gist_service
+    url: https://api.github.com
+    routes:
+      - name: gist_route
+        paths:
+          - /gists/(?<username>[^/]+)$
+        strip_path: false
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local username = ngx.var.path_username
+              if username then
+                ngx.var.upstream_uri = "/users/" .. username .. "/gists"
+              end
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "User-Agent: Kong-Gateway"
+      # Enable Keycloak Security on this service
+      - name: jwt
+        config:
+          key_claim_name: iss
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 10
+          policy: local
+
+  # ==========================================
+  # Service 2: Hello World (Local)
+  # ==========================================
+  - name: hello_world_service
+    url: http://hello_world_service:8002
+    routes:
+      - name: hello_world_route
+        paths:
+          - /hello
+    plugins:
+      # 1. Rate Limiting (5 requests per minute)
+      - name: rate-limiting
+        config:
+          minute: 5
+          policy: local
+      
+      # 2. Caching (Cache responses for 60 seconds)
+      - name: proxy-cache
+        config:
+          strategy: memory
+          content_type: 
+            - "application/json"
+          cache_ttl: 300            # How long to keep the cache (seconds)
+          response_code: 
+            - 200
+      
+      - name: jwt
+        config:
+          key_claim_name: iss
+          claims_to_verify:
+            - exp
+
+  # ==========================================
+  # Service 3: Demo Backend (Local)
+  # ==========================================
+  - name: demo_backend_service
+    url: http://backend:5000
+    routes:
+      - name: demo_backend_route
+        paths:
+          - /api
+        strip_path: true
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: iss
+          claims_to_verify:
+            - exp
+
+  # ==========================================
+  # Service 4: Demo Frontend (Local)
+  # ==========================================
+  - name: demo_frontend_service
+    url: http://frontend:5173
+    routes:
+      - name: demo_frontend_route
+        paths:
+          - /
+        strip_path: false
+
+# ==========================================
+# CONSUMERS (The Users)
+# ==========================================
+consumers:
+  - username: admin-user
+    keyauth_credentials:
+      # This secret is now fetched from HashiCorp Vault at runtime!
+      - key: "{vault://hcv/secret/data/admin-security#password}"
+  
+  - username: keycloak-user
+    jwt_secrets:
+      - key: http://localhost:8080/realms/newRealm
+        algorithm: RS256
+        secret: keycloak-secret
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq/SRxHV1ABoSouWjuSsB
+          M2KKOv+lcmDRFz66O5aMA6Ll4YLws7u50BbFmOLHgE8OzSV8DR4GAnTcmGmAniP7
+          BukaGDsz3MwDdTG9E/4cfnWc0eToLi6ZToTuDLXOmAkZYI1B5RLvm2MkacMKigLB
+          bexISpeCFQ6Y1YlK9UY9Zmhp4q6jkB86imcDh6I6JzI7qiuBq/aPnULe2wxD9gez
+          7f3h7EXYgYF+muqgE8opeTiIlzl81wygSgU/QgvQISbfEMugWmbXIl0rFkAwHFR8
+          Ch9VM+9kLgJS46qC7lfvjb7o3ydi4ktn4kei28lqjIN/04NZwrVB+uB+7zvcEPmp
+          4wIDAQAB
+          -----END PUBLIC KEY-----

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Environment
+.env
+.env.production
+.env.development
+
+# Docker
+postgres_data/
+keycloak_data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+*.code-workspace
