@@ -1,0 +1,85 @@
+routes:
+  - id: gist_route
+    uri: /gists/*
+    upstream:
+      nodes:
+        - host: api.github.com
+          port: 443
+          weight: 1
+      type: roundrobin
+      scheme: https
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/gists/([^/]+)$", "/users/$1/gists"]
+        headers:
+          set:
+            User-Agent: "APISIX-Gateway"
+      jwt-auth:
+        key_claim_name: "iss"
+      limit-count:
+        count: 10
+        time_window: 60
+        rejected_code: 429
+
+  - id: hello_world_route
+    uri: /hello
+    upstream:
+      nodes:
+        - host: hello_world
+          port: 8002
+          weight: 1
+      type: roundrobin
+    plugins:
+      proxy-rewrite:
+        uri: /
+      jwt-auth:
+        key_claim_name: "iss"
+      limit-count:
+        count: 5
+        time_window: 60
+        rejected_code: 429
+      proxy-cache:
+        strategy: memory
+        cache_http_status: [200]
+        cache_ttl: 300
+
+  - id: demo_backend_route
+    uri: /api/*
+    upstream:
+      nodes:
+        - host: backend
+          port: 5000
+          weight: 1
+      type: roundrobin
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/(.*)", "/$1"]
+      jwt-auth:
+        key_claim_name: "iss"
+
+  - id: demo_frontend_route
+    uri: /*
+    upstream:
+      nodes:
+        - host: frontend
+          port: 5173
+          weight: 1
+      type: roundrobin
+
+consumers:
+  - username: keycloak-user
+    plugins:
+      jwt-auth:
+        key: "http://localhost:8080/realms/newRealm"
+        algorithm: "RS256"
+        public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq/SRxHV1ABoSouWjuSsB
+          M2KKOv+lcmDRFz66O5aMA6Ll4YLws7u50BbFmOLHgE8OzSV8DR4GAnTcmGmAniP7
+          BukaGDsz3MwDdTG9E/4cfnWc0eToLi6ZToTuDLXOmAkZYI1B5RLvm2MkacMKigLB
+          bexISpeCFQ6Y1YlK9UY9Zmhp4q6jkB86imcDh6I6JzI7qiuBq/aPnULe2wxD9gez
+          7f3h7EXYgYF+muqgE8opeTiIlzl81wygSgU/QgvQISbfEMugWmbXIl0rFkAwHFR8
+          Ch9VM+9kLgJS46qC7lfvjb7o3ydi4ktn4kei28lqjIN/04NZwrVB+uB+7zvcEPmp
+          4wIDAQAB
+          -----END PUBLIC KEY-----
+#END

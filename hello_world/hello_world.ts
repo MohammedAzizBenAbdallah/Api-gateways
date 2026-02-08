@@ -1,5 +1,8 @@
 const express = require("express")
 const app = express()
+const morgan = require("morgan")
+
+app.use(morgan("dev"))
 
 app.get("/", (req: any, res: any) => {
     res.send("Hello World!")

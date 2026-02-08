@@ -1,0 +1,7 @@
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+  role_control_plane: standalone
+  yaml_conf:
+    path: /usr/local/apisix/conf/apisix.yaml

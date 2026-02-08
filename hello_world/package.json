@@ -11,6 +11,7 @@
     "dev": "nodemon hello_world.ts"
   },
   "dependencies": {
+    "morgan": "^1.10.1",
     "express": "^4.18.2",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.1",
