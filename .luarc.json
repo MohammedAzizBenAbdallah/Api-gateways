@@ -1,0 +1,15 @@
+{
+    "diagnostics": {
+        "globals": [
+            "kong",
+            "ngx",
+            "jit"
+        ]
+    },
+    "workspace": {
+        "library": [
+           
+        ],
+        "checkThirdParty": false
+    }
+}

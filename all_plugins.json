@@ -1,0 +1,883 @@
+﻿{
+    "data":  [
+                 {
+                     "updated_at":  1770668990,
+                     "config":  {
+                                    "body_filter":  [
+
+                                                    ],
+                                    "log":  [
+
+                                            ],
+                                    "rewrite":  [
+
+                                                ],
+                                    "access":  [
+                                                   "local username = ngx.var.path_username\nif username then\n  ngx.var.upstream_uri = \"/users/\" .. username .. \"/gists\"\nend\n"
+                                               ],
+                                    "certificate":  [
+
+                                                    ],
+                                    "header_filter":  [
+
+                                                      ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "pre-function",
+                     "id":  "0171b212-4ea4-4ca8-90b9-7cf3c02cd95d",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "9ae714ec-799c-40ea-babe-4d6861aa0a84"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773227135,
+                     "config":  {
+                                    "allow_untemplated_requests":  false,
+                                    "templates":  [
+                                                      {
+                                                          "template":  "{\n            \"messages\": [\n              {\n                \"role\": \"user\",\n                \"content\": \"Explain to me what {{thing}} is.\"\n              }\n            ]\n          }",
+                                                          "name":  "sample-template"
+                                                      }
+                                                  ],
+                                    "log_original_request":  true,
+                                    "max_request_body_size":  8192
+                                },
+                     "enabled":  false,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "ai-prompt-template",
+                     "id":  "1bba5672-e400-47df-b91e-d6eb6aaced80",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  {
+                                   "id":  "8959b2c6-acc8-4dd1-82c0-06cb005d81d3"
+                               },
+                     "created_at":  1773226956
+                 },
+                 {
+                     "updated_at":  1770668990,
+                     "config":  {
+                                    "cookie_names":  [
+
+                                                     ],
+                                    "header_names":  [
+                                                         "authorization"
+                                                     ],
+                                    "claims_to_verify":  [
+                                                             "exp"
+                                                         ],
+                                    "maximum_expiration":  0,
+                                    "realm":  null,
+                                    "run_on_preflight":  true,
+                                    "anonymous":  null,
+                                    "secret_is_base64":  false,
+                                    "key_claim_name":  "iss",
+                                    "uri_param_names":  [
+                                                            "jwt"
+                                                        ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "jwt",
+                     "id":  "1d6567ae-1bf2-4977-9baf-d8fa80b3f85a",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "9ae714ec-799c-40ea-babe-4d6861aa0a84"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773226458,
+                     "config":  {
+                                    "allow_patterns":  null,
+                                    "allow_all_conversation_history":  false,
+                                    "match_all_roles":  false,
+                                    "deny_patterns":  [
+                                                          "\"(\\\\xE2\\\\x80[\\\\x8B-\\\\x8D]|\\\\xEF\\\\xBB\\\\xBF)\"",
+                                                          "\"\\\\xE2\\\\x80[\\\\xAA-\\\\xAE]\"",
+                                                          "\"\\\\xE2\\\\x81[\\\\xA0-\\\\xAF]\"",
+                                                          "\"\\\\xF3\\\\xA0\\\\x80[\\\\xA0-\\\\xBF]|\\\\xF3\\\\xA0\\\\x81[\\\\x80-\\\\xBF]\"",
+                                                          "hack",
+                                                          "password"
+                                                      ],
+                                    "max_request_body_size":  8192,
+                                    "llm_format":  "openai"
+                                },
+                     "enabled":  true,
+                     "instance_name":  "chat_blocked_keys",
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "ai-prompt-guard",
+                     "id":  "463f6c0a-4382-40b1-afb9-e9151cf4de1a",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  {
+                                   "id":  "8959b2c6-acc8-4dd1-82c0-06cb005d81d3"
+                               },
+                     "created_at":  1773226257
+                 },
+                 {
+                     "updated_at":  1770668990,
+                     "config":  {
+                                    "rename":  {
+                                                   "headers":  [
+
+                                                               ],
+                                                   "querystring":  [
+
+                                                                   ],
+                                                   "body":  [
+
+                                                            ]
+                                               },
+                                    "remove":  {
+                                                   "headers":  [
+
+                                                               ],
+                                                   "querystring":  [
+
+                                                                   ],
+                                                   "body":  [
+
+                                                            ]
+                                               },
+                                    "append":  {
+                                                   "headers":  [
+
+                                                               ],
+                                                   "querystring":  [
+
+                                                                   ],
+                                                   "body":  [
+
+                                                            ]
+                                               },
+                                    "replace":  {
+                                                    "headers":  [
+
+                                                                ],
+                                                    "body":  [
+
+                                                             ],
+                                                    "querystring":  [
+
+                                                                    ],
+                                                    "uri":  null
+                                                },
+                                    "add":  {
+                                                "headers":  [
+                                                                "User-Agent: Kong-Gateway"
+                                                            ],
+                                                "querystring":  [
+
+                                                                ],
+                                                "body":  [
+
+                                                         ]
+                                            },
+                                    "http_method":  null
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "request-transformer",
+                     "id":  "482efb0b-5c61-4efb-a6c3-ecf92b1aedf2",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "9ae714ec-799c-40ea-babe-4d6861aa0a84"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773086714,
+                     "config":  {
+                                    "response_streaming":  "allow",
+                                    "auth":  null,
+                                    "route_type":  "llm/v1/chat",
+                                    "model":  {
+                                                  "provider":  "llama2",
+                                                  "options":  {
+                                                                  "azure_deployment_id":  null,
+                                                                  "llama2_format":  "ollama",
+                                                                  "mistral_format":  null,
+                                                                  "upstream_url":  "http://host.docker.internal:11434/api/chat",
+                                                                  "output_cost":  null,
+                                                                  "gemini":  null,
+                                                                  "bedrock":  null,
+                                                                  "max_tokens":  null,
+                                                                  "top_p":  null,
+                                                                  "top_k":  null,
+                                                                  "temperature":  null,
+                                                                  "anthropic_version":  null,
+                                                                  "input_cost":  null,
+                                                                  "azure_instance":  null,
+                                                                  "azure_api_version":  "2023-05-15",
+                                                                  "upstream_path":  null,
+                                                                  "huggingface":  null
+                                                              },
+                                                  "name":  "DeepSeek-Coder:latest"
+                                              },
+                                    "model_name_header":  true,
+                                    "logging":  {
+                                                    "log_payloads":  false,
+                                                    "log_statistics":  false
+                                                },
+                                    "max_request_body_size":  8192,
+                                    "llm_format":  "openai"
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "ai-proxy",
+                     "id":  "52742820-fa01-47a6-a0f0-d5d93050c99b",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  {
+                                   "id":  "8959b2c6-acc8-4dd1-82c0-06cb005d81d3"
+                               },
+                     "created_at":  1773086714
+                 },
+                 {
+                     "updated_at":  1773661252,
+                     "config":  {
+                                    "redis_database":  0,
+                                    "header_name":  null,
+                                    "redis":  {
+                                                  "username":  null,
+                                                  "ssl_verify":  false,
+                                                  "database":  0,
+                                                  "port":  6379,
+                                                  "server_name":  null,
+                                                  "ssl":  false,
+                                                  "host":  null,
+                                                  "password":  null,
+                                                  "timeout":  2000
+                                              },
+                                    "redis_port":  6379,
+                                    "redis_password":  null,
+                                    "limit_by":  "consumer",
+                                    "redis_username":  null,
+                                    "error_message":  "API rate limit exceeded",
+                                    "minute":  null,
+                                    "hour":  100,
+                                    "day":  null,
+                                    "month":  null,
+                                    "year":  null,
+                                    "fault_tolerant":  true,
+                                    "redis_server_name":  null,
+                                    "redis_host":  null,
+                                    "policy":  "local",
+                                    "redis_timeout":  2000,
+                                    "redis_ssl_verify":  false,
+                                    "redis_ssl":  false,
+                                    "error_code":  429,
+                                    "sync_rate":  -1,
+                                    "path":  null,
+                                    "second":  2,
+                                    "hide_client_headers":  false
+                                },
+                     "enabled":  true,
+                     "instance_name":  "advanced-rate-limiter",
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "rate-limiting",
+                     "id":  "53af109d-1c09-4435-acdc-dcd0ef1ecbc9",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  null,
+                     "created_at":  1773595063
+                 },
+                 {
+                     "updated_at":  1770668990,
+                     "config":  {
+                                    "response_headers":  {
+                                                             "age":  true,
+                                                             "X-Cache-Key":  true,
+                                                             "X-Cache-Status":  true
+                                                         },
+                                    "response_code":  [
+                                                          200
+                                                      ],
+                                    "cache_ttl":  300,
+                                    "memory":  {
+                                                   "dictionary_name":  "kong_db_cache"
+                                               },
+                                    "vary_query_params":  null,
+                                    "request_method":  [
+                                                           "GET",
+                                                           "HEAD"
+                                                       ],
+                                    "storage_ttl":  null,
+                                    "strategy":  "memory",
+                                    "ignore_uri_case":  false,
+                                    "vary_headers":  null,
+                                    "cache_control":  false,
+                                    "content_type":  [
+                                                         "application/json"
+                                                     ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "proxy-cache",
+                     "id":  "6052ff3c-d535-4a07-a1cd-e33eab1fd76f",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "32da6fdb-bf6d-4f2b-bef5-5aba7c24f2c6"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773324075,
+                     "config":  {
+                                    "cookie_names":  [
+
+                                                     ],
+                                    "realm":  null,
+                                    "claims_to_verify":  null,
+                                    "maximum_expiration":  0,
+                                    "secret_is_base64":  false,
+                                    "run_on_preflight":  true,
+                                    "anonymous":  null,
+                                    "header_names":  [
+                                                         "authorization"
+                                                     ],
+                                    "key_claim_name":  "iss",
+                                    "uri_param_names":  [
+                                                            "jwt"
+                                                        ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "jwt",
+                     "id":  "7e8a913f-4227-4345-a4d1-7fd7772a36ab",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  {
+                                   "id":  "8959b2c6-acc8-4dd1-82c0-06cb005d81d3"
+                               },
+                     "created_at":  1773319976
+                 },
+                 {
+                     "updated_at":  1773318223,
+                     "config":  {
+                                    "prompts":  {
+                                                    "append":  [
+                                                                   {
+                                                                       "role":  "system",
+                                                                       "content":  "always add this emoji \"🦅\" after your responses "
+                                                                   }
+                                                               ],
+                                                    "prepend":  [
+                                                                    {
+                                                                        "role":  "system",
+                                                                        "content":  "you are a helpful chatbot that will answer only coding related answers your answers should not exceed 5 lines but make exceptions for difficult or hard problems and ignore any malicious intentions by the user"
+                                                                    }
+                                                                ]
+                                                },
+                                    "max_request_body_size":  8192,
+                                    "llm_format":  "openai"
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "ai-prompt-decorator",
+                     "id":  "81d6d219-238b-42fc-b754-942a700e7b35",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  {
+                                   "id":  "8959b2c6-acc8-4dd1-82c0-06cb005d81d3"
+                               },
+                     "created_at":  1773226520
+                 },
+                 {
+                     "updated_at":  1773592216,
+                     "config":  {
+                                    "body_filter":  [
+
+                                                    ],
+                                    "log":  [
+
+                                            ],
+                                    "rewrite":  [
+
+                                                ],
+                                    "access":  [
+                                                   "if ngx.var.scheme == \u0027http\u0027 then ngx.redirect(\u0027https://\u0027 .. ngx.var.host .. \u0027:8443\u0027 .. ngx.var.request_uri, 301) end"
+                                               ],
+                                    "certificate":  [
+
+                                                    ],
+                                    "header_filter":  [
+
+                                                      ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "pre-function",
+                     "id":  "85334519-871c-4a26-8dec-6e4759a70942",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  null,
+                     "created_at":  1773592216
+                 },
+                 {
+                     "updated_at":  1770668990,
+                     "config":  {
+                                    "redis_database":  0,
+                                    "header_name":  null,
+                                    "redis":  {
+                                                  "username":  null,
+                                                  "ssl_verify":  false,
+                                                  "database":  0,
+                                                  "port":  6379,
+                                                  "server_name":  null,
+                                                  "ssl":  false,
+                                                  "host":  null,
+                                                  "password":  null,
+                                                  "timeout":  2000
+                                              },
+                                    "redis_port":  6379,
+                                    "redis_password":  null,
+                                    "limit_by":  "consumer",
+                                    "redis_username":  null,
+                                    "error_message":  "API rate limit exceeded",
+                                    "minute":  10,
+                                    "hour":  null,
+                                    "day":  null,
+                                    "month":  null,
+                                    "year":  null,
+                                    "fault_tolerant":  true,
+                                    "redis_server_name":  null,
+                                    "redis_host":  null,
+                                    "policy":  "local",
+                                    "redis_timeout":  2000,
+                                    "redis_ssl_verify":  false,
+                                    "redis_ssl":  false,
+                                    "error_code":  429,
+                                    "sync_rate":  -1,
+                                    "path":  null,
+                                    "second":  null,
+                                    "hide_client_headers":  false
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "rate-limiting",
+                     "id":  "8c2ddf3c-5e7e-4fa4-bbe3-0b9337f3b017",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "9ae714ec-799c-40ea-babe-4d6861aa0a84"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773663092,
+                     "config":  {
+                                    "custom_fields_by_lua":  {
+
+                                                             },
+                                    "headers":  {
+
+                                                },
+                                    "timeout":  10000,
+                                    "queue":  {
+                                                  "max_entries":  10000,
+                                                  "max_bytes":  null,
+                                                  "max_retry_time":  60,
+                                                  "initial_retry_delay":  0.01,
+                                                  "max_retry_delay":  60,
+                                                  "concurrency_limit":  1,
+                                                  "max_batch_size":  1,
+                                                  "max_coalescing_delay":  1
+                                              },
+                                    "retry_count":  null,
+                                    "keepalive":  60000,
+                                    "http_endpoint":  "http://kong-logger:9999/logs",
+                                    "queue_size":  null,
+                                    "flush_timeout":  null,
+                                    "method":  "POST",
+                                    "content_type":  "application/json"
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "http-log",
+                     "id":  "9b6f79b8-ee54-4687-b87c-2dfee8d116e3",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  null,
+                     "created_at":  1773588369
+                 },
+                 {
+                     "updated_at":  1773060539,
+                     "config":  {
+                                    "cookie_names":  [
+
+                                                     ],
+                                    "realm":  null,
+                                    "claims_to_verify":  [
+                                                             "exp"
+                                                         ],
+                                    "maximum_expiration":  0,
+                                    "secret_is_base64":  false,
+                                    "run_on_preflight":  true,
+                                    "anonymous":  null,
+                                    "header_names":  [
+                                                         "authorization"
+                                                     ],
+                                    "key_claim_name":  "iss",
+                                    "uri_param_names":  [
+                                                            "jwt"
+                                                        ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "jwt",
+                     "id":  "aa7096d1-8bd4-400c-bb58-f0eafe4062bd",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "523006f4-c5a5-4d4b-a3a4-c8cf1740d948"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773588609,
+                     "config":  {
+                                    "custom_fields_by_lua":  {
+
+                                                             },
+                                    "tags":  [
+                                                 "kong",
+                                                 "production"
+                                             ],
+                                    "host":  "logs-01.loggly.com",
+                                    "server_errors_severity":  "err",
+                                    "log_level":  "info",
+                                    "port":  514,
+                                    "key":  "bfbb7717-507d-4585-a0da-d51d354d4e7e",
+                                    "client_errors_severity":  "warning",
+                                    "successful_severity":  "info",
+                                    "timeout":  10000
+                                },
+                     "enabled":  false,
+                     "instance_name":  "global-loggly-logger",
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "loggly",
+                     "id":  "af4ab179-0302-4a6a-a389-7f09c89a764e",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  null,
+                     "route":  null,
+                     "created_at":  1773399605
+                 },
+                 {
+                     "updated_at":  1770668990,
+                     "config":  {
+                                    "redis_database":  0,
+                                    "header_name":  null,
+                                    "redis":  {
+                                                  "username":  null,
+                                                  "ssl_verify":  false,
+                                                  "database":  0,
+                                                  "port":  6379,
+                                                  "server_name":  null,
+                                                  "ssl":  false,
+                                                  "host":  null,
+                                                  "password":  null,
+                                                  "timeout":  2000
+                                              },
+                                    "redis_port":  6379,
+                                    "redis_password":  null,
+                                    "limit_by":  "consumer",
+                                    "redis_username":  null,
+                                    "error_message":  "API rate limit exceeded",
+                                    "minute":  5,
+                                    "hour":  null,
+                                    "day":  null,
+                                    "month":  null,
+                                    "year":  null,
+                                    "fault_tolerant":  true,
+                                    "redis_server_name":  null,
+                                    "redis_host":  null,
+                                    "policy":  "local",
+                                    "redis_timeout":  2000,
+                                    "redis_ssl_verify":  false,
+                                    "redis_ssl":  false,
+                                    "error_code":  429,
+                                    "sync_rate":  -1,
+                                    "path":  null,
+                                    "second":  null,
+                                    "hide_client_headers":  false
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "rate-limiting",
+                     "id":  "d57ed4e7-afe4-4dd2-9f6a-4a38627c6f48",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "32da6fdb-bf6d-4f2b-bef5-5aba7c24f2c6"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773591632,
+                     "config":  {
+                                    "required_key":  "secret"
+                                },
+                     "enabled":  false,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "simple-validator",
+                     "id":  "dacd1508-6f1d-4a94-874f-dade93b5fac9",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "32da6fdb-bf6d-4f2b-bef5-5aba7c24f2c6"
+                                 },
+                     "route":  null,
+                     "created_at":  1770669095
+                 },
+                 {
+                     "updated_at":  1773396018,
+                     "config":  {
+                                    "preflight_continue":  false,
+                                    "headers":  [
+                                                    "Authorization",
+                                                    "Content-Type"
+                                                ],
+                                    "methods":  [
+                                                    "GET",
+                                                    "HEAD",
+                                                    "PUT",
+                                                    "PATCH",
+                                                    "POST",
+                                                    "DELETE",
+                                                    "OPTIONS",
+                                                    "TRACE",
+                                                    "CONNECT"
+                                                ],
+                                    "max_age":  3600,
+                                    "private_network":  false,
+                                    "exposed_headers":  null,
+                                    "credentials":  true,
+                                    "origins":  [
+                                                    "null",
+                                                    "http://localhost:8081"
+                                                ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "cors",
+                     "id":  "fdd34835-4088-4107-9e9f-543ab4c30098",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "523006f4-c5a5-4d4b-a3a4-c8cf1740d948"
+                                 },
+                     "route":  null,
+                     "created_at":  1773324775
+                 },
+                 {
+                     "updated_at":  1773591421,
+                     "config":  {
+                                    "cookie_names":  [
+
+                                                     ],
+                                    "realm":  null,
+                                    "claims_to_verify":  [
+                                                             "exp"
+                                                         ],
+                                    "maximum_expiration":  0,
+                                    "secret_is_base64":  false,
+                                    "run_on_preflight":  true,
+                                    "anonymous":  null,
+                                    "header_names":  [
+                                                         "authorization"
+                                                     ],
+                                    "key_claim_name":  "iss",
+                                    "uri_param_names":  [
+                                                            "jwt"
+                                                        ]
+                                },
+                     "enabled":  false,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "jwt",
+                     "id":  "fe257f2e-526c-40ab-8212-619734682a4c",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "32da6fdb-bf6d-4f2b-bef5-5aba7c24f2c6"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 },
+                 {
+                     "updated_at":  1773591566,
+                     "config":  {
+                                    "body_filter":  [
+
+                                                    ],
+                                    "log":  [
+
+                                            ],
+                                    "rewrite":  [
+
+                                                ],
+                                    "access":  [
+                                                   "local cjson = require \"cjson\"\nlocal function decode_base64(data)\n  local b = \u0027ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\u0027\n  data = string.gsub(data, \u0027[^\u0027 .. b .. \u0027=]\u0027, \u0027\u0027)\n  return (data:gsub(\u0027.\u0027, function(x)\n    if (x == \u0027=\u0027) then return \u0027\u0027 end\n    local r, f = \u0027\u0027, (b:find(x) - 1)\n    for i = 6, 1, -1 do r = r .. (f % 2 ^ i - f % 2 ^ (i - 1) \u003e 0 and \u00271\u0027 or \u00270\u0027) end\n    return r;\n  end):gsub(\u0027%d%d%d%d%d%d%d%d\u0027, function(x)\n    local c = 0\n    for i = 1, 8 do c = c + (x:sub(i, i) == \u00271\u0027 and 2 ^ (8 - i) or 0) end\n    return string.char(c)\n  end))\nend\n\nlocal path = kong.request.get_path()\nlocal required_roles = nil\n\nif string.find(path, \"/api/admin\") then\n  required_roles = { \"admin\" }\nelseif string.find(path, \"/api/documents\") or string.find(path, \"/hello\") then\n  required_roles = { \"user\", \"admin\" }\nend\n\nif required_roles then\n  local auth_header = kong.request.get_header(\"Authorization\")\n  if not auth_header then\n    return kong.response.exit(401, { message = \"Unauthorized: No token provided\" })\n  end\n\n  local token = auth_header:gsub(\"Bearer \", \"\")\n  local _, payload_b64 = token:match(\"([^.]+).([^.]+).([^.]+)\")\n\n  if not payload_b64 then\n    return kong.response.exit(401, { message = \"Unauthorized: Invalid token format\" })\n  end\n\n  while #payload_b64 % 4 ~= 0 do payload_b64 = payload_b64 .. \"=\" end\n  payload_b64 = payload_b64:gsub(\"-\", \"+\"):gsub(\"_\", \"/\")\n\n  local ok, payload_json = pcall(decode_base64, payload_b64)\n  if not ok then\n    return kong.response.exit(401, { message = \"Unauthorized: Failed to decode token\" })\n  end\n\n  payload_json = payload_json:match(\"^%s*(.-)%s*$\")\n  payload_json = payload_json:match(\"(.*})\")\n\n  local ok, claims = pcall(cjson.decode, payload_json)\n  if not ok then\n    return kong.response.exit(401, { message = \"Unauthorized: Failed to parse token JSON\" })\n  end\n\n  if not claims.realm_access or not claims.realm_access.roles then\n    return kong.response.exit(403, { message = \"Forbidden: No roles found in token\" })\n  end\n\n  local roles = claims.realm_access.roles\n  local has_required_role = false\n  for _, r in ipairs(roles) do\n    for _, req in ipairs(required_roles) do\n      if r == req then has_required_role = true; break end\n    end\n    if has_required_role then break end\n  end\n\n  if not has_required_role then\n    return kong.response.exit(403, { message = \"Forbidden: Insufficient roles\" })\n  end\nend\n"
+                                               ],
+                                    "certificate":  [
+
+                                                    ],
+                                    "header_filter":  [
+
+                                                      ]
+                                },
+                     "enabled":  true,
+                     "instance_name":  null,
+                     "consumer":  null,
+                     "tags":  null,
+                     "name":  "pre-function",
+                     "id":  "ff186530-2afb-4863-ba66-6d4cad81f9e7",
+                     "protocols":  [
+                                       "grpc",
+                                       "grpcs",
+                                       "http",
+                                       "https"
+                                   ],
+                     "service":  {
+                                     "id":  "523006f4-c5a5-4d4b-a3a4-c8cf1740d948"
+                                 },
+                     "route":  null,
+                     "created_at":  1770668990
+                 }
+             ],
+    "next":  null
+}

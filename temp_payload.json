@@ -1,0 +1,5 @@
+{
+  "config": {
+    "http_endpoint": "http://kong-logger:9999/logs"
+  }
+}

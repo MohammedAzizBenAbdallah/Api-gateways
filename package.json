@@ -1,0 +1,24 @@
+{
+  "name": "apigatewaydemo",
+  "version": "1.0.0",
+  "description": "This project demonstrates a full-stack architecture integrated with **Keycloak** for Identity Management and **Kong** as an API Gateway.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MohammedAzizBenAbdallah/Api-gateways.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MohammedAzizBenAbdallah/Api-gateways/issues"
+  },
+  "homepage": "https://github.com/MohammedAzizBenAbdallah/Api-gateways#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

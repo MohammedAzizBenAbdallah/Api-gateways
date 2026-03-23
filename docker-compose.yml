@@ -1,0 +1,217 @@
+services:
+  # --- Identity & Access Management ---
+  waf:
+    image: owasp/modsecurity-crs:nginx
+    container_name: waf
+    ports:
+      - "8081:8080"
+    environment:
+      RESTRICTED_EXTENSIONS: ".cmd/ .com/ .config/ .dll/ .sql/ .py/ .js/ .php/"
+      PARANOIA: 1
+      BACKEND: "http://kong:8000"
+      PROXY_SSL: "off"
+      MSG_403: "Forbidden by WAF"
+
+      # ── Mode control ──────────────────────────────────────
+      MODSEC_RULE_ENGINE: "On" # Prevention mode (blocks requests)
+      # MODSEC_RULE_ENGINE: "On" # ← switch back to on after testing
+
+      # ── Audit logging ─────────────────────────────────────
+      MODSEC_AUDIT_ENGINE: "On" # log only blocked requests
+      MODSEC_AUDIT_LOG: /var/log/modsec_audit.log
+      MODSEC_AUDIT_LOG_FORMAT: "JSON" # structured logs
+
+      # ── Tuning ────────────────────────────────────────────
+      ANOMALY_INBOUND: 5 # score threshold to block a request
+      ANOMALY_OUTBOUND: 4
+
+    depends_on:
+      kong:
+        condition: service_started
+    volumes:
+      - ./waf/99-exclusions.sh:/docker-entrypoint.d/99-exclusions.sh
+      - ./waf/logs/modsec_audit.log:/var/log/modsec_audit.log # Map specific audit log file
+  keycloak-db:
+    image: quay.io/sclorg/postgresql-15-c9s:latest
+    container_name: keycloak-db
+    environment:
+      POSTGRESQL_DATABASE: keycloak
+      POSTGRESQL_USER: keycloak
+      POSTGRESQL_PASSWORD: password
+      POSTGRESQL_ADMIN_PASSWORD: password
+    volumes:
+      - keycloak_data:/var/lib/pgsql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - keycloak-db
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    command: start-dev --import-realm
+
+  # --- Kong Database ---
+  kong-db:
+    image: postgres:13
+    container_name: kong-db
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong
+    volumes:
+      - kong_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kong"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kong-migrations:
+    image: kong:3.9.1
+    container_name: kong-migrations
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-db
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+    depends_on:
+      - kong-db
+    command: /bin/sh -c "kong migrations bootstrap || true && kong migrations up && kong migrations finish"
+    restart: on-failure
+
+  # deck:
+  #   image: kong/deck
+  #   container_name: deck
+  #   stdin_open: true # Equivalent to -i
+  #   tty: true # Equivalent to -t
+  #   environment:
+  #     DECK_KONG_ADDR: http://kong:8001
+  #   volumes:
+  #     - ./gateway:/gateway
+  #   working_dir: /gateway
+  #   depends_on:
+  #     - kong
+
+  # --- API Gateway ---
+  kong:
+    image: kong:3.9.1
+    container_name: kong-gateway
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-db
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_PROXY_LISTEN: "0.0.0.0:8000, 0.0.0.0:8443 ssl" # ← add ssl
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001, 0.0.0.0:8444 ssl" # ← admin TLS too
+      KONG_ADMIN_GUI_LISTEN: 0.0.0.0:8002
+      KONG_ADMIN_GUI_URL: http://localhost:8002
+      KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES: cjson
+      KONG_PLUGINS: bundled,simple-validator,ai-proxy,tenant-restriction
+      KONG_LOG_LEVEL: debug
+      # KONG_LUA_PACKAGE_PATH: /usr/local/share/lua/5.1/kong/plugins/?.lua # Commented out to rely on standard paths
+    volumes:
+      - ./gateway/plugins/simple-validator:/usr/local/share/lua/5.1/kong/plugins/simple-validator
+      - ./gateway/plugins/tenant-restriction:/usr/local/share/lua/5.1/kong/plugins/tenant-restriction
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+      - "8443:8443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - kong-db
+      - kong-migrations
+      - keycloak
+
+  # --- Backend API (FastAPI) ---
+  backend:
+    build: ./fastapi_backend
+    container_name: fastapi_backend
+    environment:
+      PORT: 3000
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: newRealm
+      # Internal Docker network connection to platform-db on 5432
+      PLATFORM_DB_URL: postgresql://platform_admin:platform_pass@platform-db:5432/platform_permissions
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./fastapi_backend:/app
+    depends_on:
+      - keycloak
+      - platform-db
+
+  # --- Frontend Application ---
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    command: npm run dev -- --host
+    environment:
+      VITE_KEYCLOAK_URL: http://localhost:8080
+      VITE_KEYCLOAK_REALM: newRealm
+      VITE_KEYCLOAK_CLIENT_ID: myclient
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - kong
+
+  # --- Helper Services ---
+  hello_world:
+    build: ./hello_world
+    container_name: hello_world
+    ports:
+      - "8003:8002"
+    volumes:
+      - ./hello_world:/app
+      - /app/node_modules
+    depends_on:
+      - keycloak
+  kong-logger:
+    build: ./kong-logger
+    container_name: kong-logger
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./kong-logger:/app
+      - /app/node_modules
+    depends_on:
+      - kong
+  # --- Platform Database (Permissions & Orchestrator) ---
+  platform-db:
+    image: postgres:15
+    container_name: platform-db
+    environment:
+      POSTGRES_USER: platform_admin
+      POSTGRES_DB: platform_permissions
+      POSTGRES_PASSWORD: platform_pass
+    volumes:
+      - platform_db_data:/var/lib/postgresql/data
+      - ./backend/scripts/init-platform-db.sql:/docker-entrypoint-initdb.d/init-platform-db.sql
+    ports:
+      - "5433:5432" # Map to 5433 to avoid conflict with Kong DB on host if needed
+
+volumes:
+  keycloak_data: {}
+  kong_db_data: {}
+  platform_db_data: {}

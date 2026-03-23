@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node.js
+node_modules/
+dist/
+.next/
+build/
+
+# Environment & secrets
+.env
+.env.*
+*.env
+!.env.example
+secrets/
+vault-data/
+*.key
+*.pem
+*.crt
+
+# Docker volumes & data
+postgres-data/
+keycloak_data/
+kong_db_data/
+platform_db_data/
+
+# Logs
+*.log
+waf/logs/
+kong-logger/kong-logs.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
