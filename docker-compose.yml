@@ -30,7 +30,9 @@ services:
         condition: service_started
     volumes:
       - ./waf/99-exclusions.sh:/docker-entrypoint.d/99-exclusions.sh
-      - ./waf/logs/modsec_audit.log:/var/log/modsec_audit.log # Map specific audit log file
+      - ./waf/logs/modsec_audit.log:/var/log/modsec_audit.log
+    labels:
+      service: waf
   keycloak-db:
     image: quay.io/sclorg/postgresql-15-c9s:latest
     container_name: keycloak-db
@@ -210,6 +212,41 @@ services:
       - ./backend/scripts/init-platform-db.sql:/docker-entrypoint-initdb.d/init-platform-db.sql
     ports:
       - "5433:5432" # Map to 5433 to avoid conflict with Kong DB on host if needed
+
+  # --- Observability Stack (Security Eyes) ---
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./waf/logs/modsec_audit.log:/var/log/modsec_audit.log
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3200:3000"
+    volumes:
+      - ./grafana/provisioning/datasources/loki.yml:/etc/grafana/provisioning/datasources/loki.yaml
+    depends_on:
+      - loki
+
 
 volumes:
   keycloak_data: {}

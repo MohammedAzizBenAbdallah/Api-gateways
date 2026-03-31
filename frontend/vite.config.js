@@ -7,12 +7,12 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://waf:8081",
+        target: "http://waf:8080",
         changeOrigin: true,
         rewrite: (path) => path,
       },
       "/ai": {
-        target: "http://waf:8081",
+        target: "http://waf:8080",
         changeOrigin: true,
         rewrite: (path) => path,
       },

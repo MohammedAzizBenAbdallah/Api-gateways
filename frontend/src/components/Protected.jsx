@@ -7,12 +7,14 @@ export default function Protected() {
   const { logout, token } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [error, setError] = useState(null);
+  const [systemInfo, setSystemInfo] = useState(null);
   const [loading, setLoading] = useState(false);
 
   console.log(token);
 
   const fetchAdmin = async () => {
     setError(null);
+    setSystemInfo(null);
     setLoading(true);
     try {
       const config = {
@@ -36,6 +38,7 @@ export default function Protected() {
 
   const fetchDocuments = async () => {
     setError(null);
+    setSystemInfo(null);
     setLoading(true);
     try {
       const config = {
@@ -55,13 +58,41 @@ export default function Protected() {
     }
   };
 
+  const fetchNextora = async () => {
+    setError(null);
+    setSystemInfo(null);
+    setLoading(true);
+    try {
+      const config = {
+        headers: {
+          authorization: `Bearer ${token}`
+        },
+      };
+      // Directly hit the Nextora route on the local gateway 
+      await axios.get("http://localhost:8000/nextora", config);
+      setSystemInfo("✅ Nextora Zero-Trust Connection Successful! (HTML entry point received)");
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setError("Nextora access blocked by Gateway (403)");
+      } else if (err.response?.status === 401) {
+        setError("Nextora access unauthorized (401)");
+      } else {
+        setError("Network error connecting to Nextora via Gateway");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AIChat
       logout={logout}
       fetchAdmin={fetchAdmin}
       fetchDocuments={fetchDocuments}
+      fetchNextora={fetchNextora}
       loading={loading}
       error={error}
+      systemInfo={systemInfo}
       documents={documents}
     />
   );

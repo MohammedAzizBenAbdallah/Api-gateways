@@ -23,8 +23,10 @@ const AIChat = ({
   logout,
   fetchAdmin,
   fetchDocuments,
+  fetchNextora,
   loading,
   error,
+  systemInfo,
   documents,
 }) => {
   const { token } = useAuth();
@@ -345,6 +347,14 @@ const AIChat = ({
           </button>
           <button
             className="dashboard-btn"
+            onClick={fetchNextora}
+            disabled={loading}
+            style={{ borderColor: "rgba(16, 185, 129, 0.4)", color: "#34d399", background: "rgba(16, 185, 129, 0.05)" }}
+          >
+            {loading ? "..." : "Nextora Portal"}
+          </button>
+          <button
+            className="dashboard-btn"
             onClick={logout}
             style={{ borderColor: "rgba(239, 68, 68, 0.3)", color: "#f87171" }}
           >
@@ -365,6 +375,21 @@ const AIChat = ({
               }}
             >
               System Alert: {error}
+            </div>
+          </div>
+        )}
+
+        {systemInfo && (
+          <div className="message-wrapper ai" style={{ alignSelf: "center" }}>
+            <div
+              className="message-bubble"
+              style={{
+                borderColor: "rgba(16, 185, 129, 0.4)",
+                color: "#6ee7b7",
+                background: "rgba(16, 185, 129, 0.05)"
+              }}
+            >
+              {systemInfo}
             </div>
           </div>
         )}
