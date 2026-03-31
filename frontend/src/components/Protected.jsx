@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import useAuth from "../hooks/useAuth";
 import axios from "axios";
 import AIChat from "./AIChat";
+import AdminPortal from "./AdminPortal";
+import { useKeyPress } from "../../hooks/useKeyPress";
 
 export default function Protected() {
-  const { logout, token } = useAuth();
+  const { logout, token, roles } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  console.log(token);
+  const [showAdminPortal, setShowAdminPortal] = useState(false);
+  useKeyPress("Escape", () => setShowAdminPortal(false));
+  const isAdmin = roles.includes("admin");
 
   const fetchAdmin = async () => {
     setError(null);
@@ -56,13 +59,20 @@ export default function Protected() {
   };
 
   return (
-    <AIChat
-      logout={logout}
-      fetchAdmin={fetchAdmin}
-      fetchDocuments={fetchDocuments}
-      loading={loading}
-      error={error}
-      documents={documents}
-    />
+    <>
+      <AIChat
+        logout={logout}
+        fetchAdmin={fetchAdmin}
+        fetchDocuments={fetchDocuments}
+        loading={loading}
+        error={error}
+        documents={documents}
+        isAdmin={isAdmin}
+        onOpenAdmin={() => setShowAdminPortal(true)}
+      />
+      {showAdminPortal && (
+        <AdminPortal token={token} onClose={() => setShowAdminPortal(false)} />
+      )}
+    </>
   );
 }

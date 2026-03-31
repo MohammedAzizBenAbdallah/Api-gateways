@@ -17,6 +17,8 @@ build/
 .env.*
 *.env
 !.env.example
+token.json
+token.*.json
 secrets/
 vault-data/
 *.key
@@ -43,3 +45,6 @@ kong-logger/kong-logs.json
 # OS
 Thumbs.db
 .DS_Store
+
+
+.temp_research/
