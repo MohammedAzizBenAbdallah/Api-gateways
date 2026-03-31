@@ -1,0 +1,27 @@
+version: "1.0.0"
+intents:
+  - label: "code_generation"
+    service_id: "ollama_deep_seek_coder"
+    description: "Routes code-related prompts to DeepSeek Coder"
+    examples:
+      - "Write a python script to parse CSV"
+      - "How do I implement a linked list?"
+
+  - label: "general_chat"
+    service_id: "ollama_llama3.2"
+    description: "Routes general conversation to Llama 3.2"
+    examples:
+      - "Who won the world cup in 2022?"
+      - "What is the capital of France?"
+
+  - label: "summarization"
+    service_id: "ollama_llama3.2"
+    description: "Routes summarization tasks to Llama 3.2"
+    examples:
+      - "Summarize this article"
+      - "TL;DR for this text"
+  - label: "advanced_chat"
+    service_id: "ollama_llama3.2"
+    description: "Routes advanced chat tasks to Llama 3.2"
+    examples:
+      - "explain quantum computing"
