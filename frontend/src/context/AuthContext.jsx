@@ -6,6 +6,7 @@ export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [isLogin, setIsLogin] = useState(false);
     const [token, setToken] = useState(null);
+    const [roles, setRoles] = useState([]);
     const isRun = useRef(false);
     const clientRef = useRef(null);
 
@@ -26,6 +27,7 @@ export const AuthProvider = ({ children }) => {
         }).then((authenticated) => {
             setIsLogin(authenticated);
             setToken(client.token);
+            setRoles(client.realmAccess?.roles || []);
         }).catch(err => {
             console.error("Keycloak init failed:", err);
         });
@@ -38,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ isLogin, token, logout }}>
+        <AuthContext.Provider value={{ isLogin, token, roles, logout }}>
             {children}
         </AuthContext.Provider>
     );

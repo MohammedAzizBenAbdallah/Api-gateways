@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import useAuth from "../hooks/useAuth";
+import useIntent from "../hooks/useIntent";
+import mapIntents from "../../services/mapIntents";
 
 // ── Blinking cursor keyframe injected once at module level ────────────────
 const CURSOR_STYLE = `
@@ -26,6 +28,8 @@ const AIChat = ({
   loading,
   error,
   documents,
+  isAdmin,
+  onOpenAdmin,
 }) => {
   const { token } = useAuth();
 
@@ -46,13 +50,24 @@ const AIChat = ({
   const textareaRef = useRef(null);
 
   // ── Intent definitions ────────────────────────────────────────────────────
-  const INTENTS = [
-    { value: "code_generation", label: "Code Generation" },
-    { value: "general_chat", label: "General Chat" },
-    { value: "summarization", label: "Summarization" },
+  const { intents } = useIntent();
+  const INTENTS = mapIntents(intents);
+  // ── Sensitivity levels ───────────────────────────────────────────────────
+  const SENSITIVITY_LEVELS = [
+    { value: "LOW", label: "🟢 Low", color: "#4ade80" },
+    { value: "MEDIUM", label: "🟡 Medium", color: "#facc15" },
+    { value: "HIGH", label: "🔴 High", color: "#f87171" },
   ];
 
-  const [selectedIntent, setSelectedIntent] = useState(INTENTS[0].value);
+  const [selectedIntent, setSelectedIntent] = useState(null);
+
+  // Update selectedIntent when INTENTS are loaded
+  useEffect(() => {
+    if (INTENTS.length > 0 && !selectedIntent) {
+      setSelectedIntent(INTENTS[0].value);
+    }
+  }, [INTENTS, selectedIntent]);
+  const [selectedSensitivity, setSelectedSensitivity] = useState("LOW");
   const [resolvedService, setResolvedService] = useState(null);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
@@ -79,6 +94,10 @@ const AIChat = ({
     if (e) e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    const MAX_HISTORY = 6;
+    // Sliding window — prevents context overflow and avoids
+    // re-scanning old PII in backend content inspector
+
     const userMessage = {
       role: "user",
       content: input.trim(),
@@ -88,7 +107,7 @@ const AIChat = ({
       }),
     };
 
-    const conversationHistory = [...messages, userMessage];
+    const conversationHistory = [...messages, userMessage].slice(-MAX_HISTORY);
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
@@ -112,7 +131,7 @@ const AIChat = ({
             })),
           },
           metadata: {
-            sensitivity: "LOW",
+            sensitivity: selectedSensitivity,
             environment: "dev",
           },
         }),
@@ -240,6 +259,10 @@ const AIChat = ({
                 isStreaming: false,
                 requestId: data.request_id || null,
                 resolvedService: data.resolved_service || null,
+                resolvedSensitivity: data.resolved_sensitivity || null,
+                detectedPiiTypes: Array.isArray(data.detected_pii_types)
+                  ? data.detected_pii_types
+                  : null,
                 // Streaming latency comes from X-Request-ID header only;
                 // no per-message upstream latency available in SSE mode
                 metrics: {
@@ -329,6 +352,18 @@ const AIChat = ({
         </div>
 
         <div style={{ display: "flex", gap: "0.8rem" }}>
+          {isAdmin && (
+            <button
+              className="dashboard-btn"
+              onClick={onOpenAdmin}
+              style={{
+                borderColor: "var(--accent-primary)",
+                background: "rgba(59, 130, 246, 0.1)",
+              }}
+            >
+              Intent Admin
+            </button>
+          )}
           <button
             className="dashboard-btn"
             onClick={fetchDocuments}
@@ -484,6 +519,38 @@ const AIChat = ({
                     )}
                   </div>
                 )}
+
+                {/* PII indicator (server-side inspection summary) */}
+                {Array.isArray(m.detectedPiiTypes) &&
+                  m.detectedPiiTypes.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: "0.8rem",
+                        paddingTop: "0.8rem",
+                        borderTop: "1px solid rgba(248, 113, 113, 0.25)",
+                        fontSize: "0.75rem",
+                        color: "#fca5a5",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.5rem",
+                        alignItems: "center",
+                      }}
+                      title="This is a server-side summary (types only, no raw matches)."
+                    >
+                      <span style={{ fontWeight: 600 }}>PII detected:</span>
+                      <span style={{ opacity: 0.9 }}>
+                        {m.detectedPiiTypes.join(", ")}
+                      </span>
+                      {m.resolvedSensitivity && (
+                        <span style={{ opacity: 0.9 }}>
+                          · resolved sensitivity:{" "}
+                          <span style={{ fontWeight: 600 }}>
+                            {m.resolvedSensitivity}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  )}
               </div>
 
               {/* Request ID below AI bubble */}
@@ -536,6 +603,36 @@ const AIChat = ({
             disabled={isActive}
           />
           <div className="input-actions-group">
+            {/* Sensitivity selector */}
+            <select
+              className="model-select-dropdown"
+              value={selectedSensitivity}
+              onChange={(e) => setSelectedSensitivity(e.target.value)}
+              disabled={isActive}
+              title="Declare payload sensitivity"
+              style={{
+                borderColor:
+                  selectedSensitivity === "HIGH"
+                    ? "rgba(248, 113, 113, 0.5)"
+                    : selectedSensitivity === "MEDIUM"
+                      ? "rgba(250, 204, 21, 0.5)"
+                      : "rgba(74, 222, 128, 0.4)",
+                color:
+                  selectedSensitivity === "HIGH"
+                    ? "#f87171"
+                    : selectedSensitivity === "MEDIUM"
+                      ? "#facc15"
+                      : "#4ade80",
+              }}
+            >
+              {SENSITIVITY_LEVELS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Intent selector */}
             <select
               className="model-select-dropdown"
               value={selectedIntent}
@@ -545,11 +642,15 @@ const AIChat = ({
               }}
               disabled={isActive}
             >
-              {INTENTS.map((intent) => (
-                <option key={intent.value} value={intent.value}>
-                  {intent.label}
-                </option>
-              ))}
+              {INTENTS ? (
+                INTENTS.map((intent) => (
+                  <option key={intent.value} value={intent.value}>
+                    {intent.label}
+                  </option>
+                ))
+              ) : (
+                <option>Loading intents...</option>
+              )}
             </select>
             <button
               className="send-btn-pill"
