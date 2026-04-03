@@ -48,3 +48,26 @@ Thumbs.db
 
 
 .temp_research/
+
+
+# Temporary files
+tmp/
+
+# Vault data
+vault-data/
+
+
+# Keep for reference
+keep_for_reference.yaml
+
+# Kong declarative configuration
+kong.yml
+
+kong_v2.yaml
+
+plugins.json
+routes.json
+services.json
+upstreams.json
+consumers.json
+certificates.json
