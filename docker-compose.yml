@@ -91,18 +91,18 @@ services:
     command: /bin/sh -c "kong migrations bootstrap || true && kong migrations up && kong migrations finish"
     restart: on-failure
 
-  # deck:
-  #   image: kong/deck
-  #   container_name: deck
-  #   stdin_open: true # Equivalent to -i
-  #   tty: true # Equivalent to -t
-  #   environment:
-  #     DECK_KONG_ADDR: http://kong:8001
-  #   volumes:
-  #     - ./gateway:/gateway
-  #   working_dir: /gateway
-  #   depends_on:
-  #     - kong
+  deck:
+    image: kong/deck
+    container_name: deck
+    environment:
+      DECK_KONG_ADDR: http://kong-gateway:8001
+    volumes:
+      - ./gateway:/gateway
+    working_dir: /gateway
+    command: gateway sync /gateway/kong_final.yaml
+    depends_on:
+      kong:
+        condition: service_healthy
 
   # --- API Gateway ---
   kong:
@@ -139,6 +139,11 @@ services:
       - kong-db
       - kong-migrations
       - keycloak
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
 
   # --- Backend API (FastAPI) ---
   backend:

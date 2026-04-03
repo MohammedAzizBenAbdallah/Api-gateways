@@ -1,0 +1,143 @@
+_format_version: "3.0"
+
+services:
+  - name: new
+    url: http://197.14.4.163:8085/
+    connect_timeout: 60000
+    read_timeout: 60000
+    write_timeout: 60000
+    retries: 5
+    routes:
+      - name: newroute
+        paths:
+          - /new
+        strip_path: true
+        protocols:
+          - http
+          - https
+
+  - name: fastapi
+    url: http://fastapi_backend:3000/
+    connect_timeout: 60000
+    read_timeout: 60000
+    write_timeout: 60000
+    retries: 5
+    routes:
+      - name: fastapi
+        paths:
+          - /api
+        strip_path: false
+        protocols:
+          - http
+
+  - name: frontend
+    url: http://frontend:5173/
+    connect_timeout: 60000
+    read_timeout: 60000
+    write_timeout: 60000
+    retries: 5
+    routes:
+      - name: demo_frontend_route
+        paths:
+          - /
+        strip_path: false
+        protocols:
+          - http
+          - https
+
+plugins:
+  - name: pre-function
+    enabled: true
+    config:
+      access:
+        - |
+          if not _G.kong then return end
+          if ngx.var.scheme == 'http' then ngx.redirect('https://' .. ngx.var.host .. ':8443' .. ngx.var.request_uri, 301) end
+  - name: http-log
+    enabled: true
+    config:
+      http_endpoint: "http://kong-logger:9999/logs"
+      method: POST
+      content_type: "application/json"
+      keepalive: 60000
+      timeout: 10000
+      queue:
+        concurrency_limit: 1
+        max_batch_size: 1
+        max_coalescing_delay: 1
+        max_entries: 10000
+        max_retry_time: 60
+        initial_retry_delay: 0.01
+        max_retry_delay: 60
+
+consumers: []
+#  - username: keycloak-user
+#    custom_id: keycloak-user
+#    jwt_secrets:
+#      - key: http://localhost:8080/realms/newRealm
+#        algorithm: RS256
+#        rsa_public_key: |
+#          -----BEGIN PUBLIC KEY-----
+#          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx4UEg4cqx
+#          nM8WDll58WZEshROaNW2WafVqHk1XE7a2d4/l70fhCrgncjzMfIj4Dn
+#          HBTO1EBvNPXwjYIE1yk+VtZ+Aukd6ji78K7Se/1aRtG7mnSOaTjhPAw2q
+#          SM7xLP/tK54Zc07MeX3m17yhohYzacQQDxOl5GANGuH8zXaIZr2w3q
+#          RPDjrhPT7LB0SzRQQJ9MlufhA053pisEnAKe/D1LRDBp2mlczSO5d1D
+#          H/goLmxyw7azAcdCm0ZGz+sxeaYKj0JExpCT2EFt746PPlDntXXGD4
+#          6M/rpeTcrIz+4QquuHa4/elZH5Ib3iZg+n/l9VlO8bupDQN8UBiK/ZmzQI
+#          DAQAB
+#          -----END PUBLIC KEY-----
+
+certificates:
+  - id: 82d6da82-736a-493a-8663-8a306440f1a4
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      MIIDCTCCAfGgAwIBAgIUFEWY+BHHDVo9WvUrvGpSuTK7NAwwDQYJKoZIhvcNAQEL
+      BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDQwMjIyNTMyMFoXDTI3MDQw
+      MjIyNTMyMFowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEF
+      AAOCAQ8AMIIBCgKCAQEAvtY2/E+pSwsfKV7yGihZmurfGUjRZ6MmpUmJqe8x6d2R
+      SPTMoAowgNAWUtEakrg5OK8g5VaiX+5T6YdFoX32E2r4yYU7EPoTxfNxieQt27cH
+      +xbq9VlPp9JgJhXK5Aixu6GM1f1h8dy6OowV0JTfJlJWdE0jJULyACvBqu0zEKRu
+      lbGumcx4Njus5gswALsCJsfILV5hpJMaZULZGfGBgpoj7JKENDQXAYqCHPC25+c8
+      6nnyVvVj3PA39OKf7jmtYuZJeLgh2qjPtqAIAyttbKow7Bu4mMoYeZfrMxSF7aBP
+      yeLFCgDLONjktrL3uBQlB4uEm1h2lUsy9xziCrYkmwIDAQABo1MwUTAdBgNVHQ4E
+      FgQUNvB0XgxZqkGbSVhIbXGu4wGeRoIwHwYDVR0jBBgwFoAUNvB0XgxZqkGbSVhI
+      bXGu4wGeRoIwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAbMWV
+      Div2Y7h+O5kgfloF88jbLyRZXgFT22KZiSNpLN0JQIc3rlx3J6bSHlP37wHoBflf
+      rAO4uqkAisg5l4ys0zSLExJl/7pmMtTj+wicbYm27HQM+LbwaC1guIgqBJ1SYwBN
+      9/jA9qG+OKkvZWPJxWrIajky4TV3rmSgx6dznNmy4XOGVMhXcNjrE13rNhbHktvX
+      U+Z6zLG7Z2EVmWSG3WkYSrzVOkMmelmd4g9HfAt4In2tMFb+139VbEiXZCkIcG2E
+      6MRIRWdxBTfaAc/YkVl+HTJ18D13WVcHADgoA+c6Y9eDrTeJYUk9kil0RjKRs5ZZ
+      EhPLHcMSE66jQz1eIw==
+      -----END CERTIFICATE-----
+    key: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC+1jb8T6lLCx8p
+      XvIaKFma6t8ZSNFnoyalSYmp7zHp3ZFI9MygCjCA0BZS0RqSuDk4ryDlVqJf7lPp
+      h0WhffYTavjJhTsQ+hPF83GJ5C3btwf7Fur1WU+n0mAmFcrkCLG7oYzV/WHx3Lo6
+      jBXQlN8mUlZ0TSMlQvIAK8Gq7TMQpG6Vsa6ZzHg2O6zmCzAAuwImx8gtXmGkkxpl
+      QtkZ8YGCmiPskoQ0NBcBioIc8Lbn5zzqefJW9WPc8Df04p/uOa1i5kl4uCHaqM+2
+      oAgDK21sqjDsG7iYyhh5l+szFIXtoE/J4sUKAMs42OS2sve4FCUHi4SbWHaVSzL3
+      HOIKtiSbAgMBAAECggEAL9mFevk8cRkOTLDGUqG4afwnSW81Nl+1sm8AahAUO1f3
+      dEwRPLWhWMMUPdq5Z31yt5BN1sNEvnoDJ0RoRKhROagyTlEuMMELkTBL0S/aAcPg
+      Z+hkrHUi4GkC+7muIEQ/0FSe/A7m7p6SQVjbpWuWkkTF8a5fuBmTlVBjZIjKK4sn
+      s6a8YRlO5Nq2OA6Y4zqYsnJ/h4LpTAVATDzdYjdUW3acPD3F2USlvBX5v0EA6mvZ
+      YjNDX8jaAi4rI06vfWhmvwX9MAvdiT655pdhIZSA9z4DOm7M9TYrfJVTI3sA2KSo
+      4vRsoUL/sRYvrx9CiO5rVF4/wj3WA2pXX5jf07hTJQKBgQD3hV7WD6ymFSvUrsMG
+      nUpBVkbM+HyveE9eu1oDTl9ci7DbAsAN7qAW8TYygd2nVhU/7HVuOGt66HX3WHJm
+      T8BG7bdLF0xu1OZCCLNv6KmyUcl1iOuwpcBhn7BrCrN1n5t/ixmL/+tzJ76gjtCM
+      ttN5dL8HrADmsEmgq1JqVAz2DQKBgQDFX8DnA9DaAHIjbzSEfxfceV47ogU6A5hc
+      QkC8skR3iSqUowgTSG3a9YPKSy6aBTN94iUNKn3y2Np6arqaEQMJieZalWgXbTsX
+      wAXCJM9iE1yDs5r5WA6mUWuvGZW1GovL1aujHvMEREP7db2kPxv6VfZGwm8282c+
+      F9jXH/rDRwKBgEZz4eCQKZZEZGtvKvfRAXfDdPeWqvbPCdhu/1n9jssqv7Y2/C97
+      AnpFQiXyLQMaT4YYafxrdrxPOnSi6j0Q6ivGMevfv9O0Ka4WB+0MjnDBMtSPmnZ3
+      V2DyMSbmrtoGCh6tmyHsQDpQz8OnotjKmTry7gTjAoanGu3uldDKB75pAoGAZS0X
+      mpSXLBlMaSOpXT41QhypFJKScVHEeY6w1snfVRNoU3dbPV9EiRiP7VQq2GNQKPiT
+      G7OriqBlJpmtfCq6Ttp0zfyGtnOU9jDGAuaRtGnOY+jeyXC9Wb6lH8ZSutqXzO6E
+      JINJ+ebwnmeVxitfsSz9qPokvpt5UhgxXN2U0yMCgYBx2prjXNVUEQekt9JCc3dj
+      XytfYcMYDYB68TGV1MEMJD7qXGcMbzxS0WYzqrg2MsU6zAj/JyQeXF+aZ0XyxuPY
+      y+KlBNky+a16D56c8kiE6omiDVTfnNKOjMHoISxhckvSbSjb3qFAzJJNOsK6tY6Q
+      UWiJsM+3gsKOKvtYOGh6tw==
+      -----END PRIVATE KEY-----
+    snis:
+      - name: localhost
