@@ -17,6 +17,7 @@ from app.core.exceptions import (
     ServiceNotFoundError,
     TenantIdMissingError,
     TenantNotAuthorizedError,
+    PolicyViolationError,
 )
 from app.core.middleware import verify_kong_header
 from app.core.security import get_current_user
@@ -84,6 +85,8 @@ async def submit_ai_request(
     except TenantIdMissingError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     except TenantNotAuthorizedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except PolicyViolationError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ProviderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

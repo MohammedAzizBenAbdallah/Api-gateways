@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.schemas.policy import PolicyEvaluationResult
 
 
 class DomainError(Exception):
@@ -71,4 +74,14 @@ class IntentMappingNotFoundError(DomainError):
 
     def __str__(self) -> str:  # pragma: no cover
         return "Mapping not found"
+
+
+@dataclass(frozen=True)
+class PolicyViolationError(DomainError):
+    policy_id: str
+    description: str
+    results: List[PolicyEvaluationResult]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Policy violation: {self.policy_id} - {self.description or 'No description provided'}"
 

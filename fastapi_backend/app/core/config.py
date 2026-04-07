@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     cors_origin: str = Field(alias="CORS_ORIGIN")
     kong_header_value: str = Field(default="true", alias="KONG_HEADER_VALUE")
     environment: str = Field(default="development", alias="ENVIRONMENT")
+    policy_file_path: str = Field(default="policies.yaml", alias="POLICY_FILE_PATH")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

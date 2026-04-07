@@ -20,4 +20,5 @@ class AIService(Base):
     provider_url = Column(String, nullable=False)
     provider_type = Column(String, default="ollama")
     description = Column(Text, nullable=True)
+    service_type = Column(String, default="on-prem")
 
