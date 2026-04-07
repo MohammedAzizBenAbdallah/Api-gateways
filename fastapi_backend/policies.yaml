@@ -1,0 +1,24 @@
+policies:
+- condition:
+    sensitivity: HIGH
+    tenant: finance
+  description: High sensitivity data must stay on-prem for finance tenant
+  effect: allow_onprem_only
+  id: high-sensitivity-onprem
+- condition:
+    tenant: restricted-segment
+  description: Deny cloud for restricted segments
+  effect: deny_cloud
+  id: deny-cloud-restricted
+- condition:
+    sensitivity: MEDIUM
+  description: Medium sensitivity allows cloud but warns (placeholder)
+  effect: allow_all
+  id: medium-sensitivity-default
+- condition:
+    sensitivity: HIGH
+  description: 'UPDATED: Cloud services are forbidden for high sensitivity data across
+    all tenants'
+  effect: deny_cloud
+  id: block-all-cloud-high
+version: 1.0.0

@@ -66,7 +66,7 @@ const AIChat = ({
     if (INTENTS.length > 0 && !selectedIntent) {
       setSelectedIntent(INTENTS[0].value);
     }
-  }, [INTENTS, selectedIntent]);
+  }, [INTENTS, selectedIntent, intents]);
   const [selectedSensitivity, setSelectedSensitivity] = useState("LOW");
   const [resolvedService, setResolvedService] = useState(null);
 

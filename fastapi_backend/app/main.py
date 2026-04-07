@@ -1,16 +1,18 @@
 # app/main.py
-"""FastAPI application factory wiring routers and application services."""
-
 from __future__ import annotations
+"""FastAPI application factory wiring routers and application services."""
+print("[DEBUG] Loading main.py...")
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin.intent_mappings import router as admin_intent_mappings_router
+from app.api.admin.services import router as admin_services_router
 from app.api.ai import router as ai_router
 from app.core.config import settings
 from app.core.middleware import verify_kong_header
@@ -23,6 +25,7 @@ from app.services.ai_request_service import AIRequestService
 from app.services.content_inspector_service import ContentInspectorService
 from app.services.intent_cache_service import IntentCacheService
 from app.services.intent_mappings_service import IntentMappingsService
+from app.services.policy_service import PolicyService
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -30,12 +33,14 @@ logger = logging.getLogger(__name__)
 
 content_inspector_service = ContentInspectorService()
 intent_cache_service = IntentCacheService(session_factory=AsyncSessionLocal)
+policy_service = PolicyService()
 
 
 def _build_ai_request_service() -> AIRequestService:
     return AIRequestService(
         intent_cache_service=intent_cache_service,
         content_inspector_service=content_inspector_service,
+        policy_service=policy_service,
         session_factory=AsyncSessionLocal,
     )
 
@@ -46,6 +51,11 @@ def _build_intent_mappings_service() -> IntentMappingsService:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Load and validate governance policies (fail-fast if invalid)
+    policy_path = os.path.join(os.getcwd(), settings.policy_file_path)
+    logger.info("Initializing Policy Engine from %s", policy_path)
+    policy_service.load_policies(policy_path)
+
     # Fail fast if required external dependencies (spaCy model) are missing.
     _ = get_nlp()
 
@@ -74,6 +84,7 @@ def create_app() -> FastAPI:
     app.state.intent_cache_service = intent_cache_service
     app.state.ai_request_service = _build_ai_request_service()
     app.state.intent_mappings_service = _build_intent_mappings_service()
+    app.state.policy_service = policy_service
 
     app.add_middleware(
         CORSMiddleware,
@@ -82,6 +93,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Register Domain Routers (Fastest match)
+    app.include_router(ai_router, prefix="/api")
+    app.include_router(admin_intent_mappings_router, prefix="/api")
+    app.include_router(admin_services_router, prefix="/api")
 
     @app.get("/", tags=["Health"])
     async def root() -> dict:
@@ -125,11 +141,7 @@ def create_app() -> FastAPI:
             ],
         }
 
-    app.include_router(ai_router, prefix="/api")
-    app.include_router(admin_intent_mappings_router, prefix="/api")
-
     return app
 
 
 app = create_app()
-

@@ -26,8 +26,10 @@ from app.repositories.ai_request_repository import (
 )
 from app.repositories.ai_service_repository import get_ai_service_by_id
 from app.repositories.permission_repository import check_tenant_service_permission_and_audit
+from app.repositories.policy_audit_repository import create_policy_audit_log
 from app.services.content_inspector_service import ContentInspectorService
 from app.services.intent_cache_service import IntentCacheService
+from app.services.policy_service import PolicyService
 
 
 logger = logging.getLogger(__name__)
@@ -41,10 +43,12 @@ class AIRequestService:
         *,
         intent_cache_service: IntentCacheService,
         content_inspector_service: ContentInspectorService,
+        policy_service: PolicyService,
         session_factory: Any,
     ) -> None:
         self._intent_cache_service = intent_cache_service
         self._content_inspector_service = content_inspector_service
+        self._policy_service = policy_service
         self._session_factory = session_factory
 
     async def _update_status_in_new_session(
@@ -131,6 +135,47 @@ class AIRequestService:
             request_id=request_id,
             resolved_sensitivity=final_sensitivity.value,
         )
+
+        # Policy Evaluation
+        evaluation_results = []
+        try:
+            evaluation_results = self._policy_service.evaluate({
+                "sensitivity": final_sensitivity,
+                "tenant": tenant_id,
+                "service_type": getattr(service, "service_type", "on-prem")
+            })
+        except PolicyViolationError as exc:
+            evaluation_results = exc.results
+            # Log results to DB before re-raising
+            for res in evaluation_results:
+                await create_policy_audit_log(
+                    db,
+                    request_id=request_id,
+                    policy_id=res.policy_id,
+                    effect=res.effect.value,
+                    decision=res.decision,
+                    context={
+                        "sensitivity": final_sensitivity.value,
+                        "tenant": tenant_id,
+                        "service_type": getattr(service, "service_type", "on-prem")
+                    }
+                )
+            raise
+        
+        # Log successful matches
+        for res in evaluation_results:
+            await create_policy_audit_log(
+                db,
+                request_id=request_id,
+                policy_id=res.policy_id,
+                effect=res.effect.value,
+                decision=res.decision,
+                context={
+                    "sensitivity": final_sensitivity.value,
+                    "tenant": tenant_id,
+                    "service_type": getattr(service, "service_type", "on-prem")
+                }
+            )
 
         messages: List[Dict[str, str]] = [
             {"role": m.role, "content": m.content} for m in body.payload.messages
@@ -266,6 +311,45 @@ class AIRequestService:
             request_id=request_id,
             resolved_sensitivity=final_sensitivity.value,
         )
+
+        # Policy Evaluation
+        evaluation_results = []
+        try:
+            evaluation_results = self._policy_service.evaluate({
+                "sensitivity": final_sensitivity,
+                "tenant": tenant_id,
+                "service_type": getattr(service, "service_type", "on-prem")
+            })
+        except PolicyViolationError as exc:
+            evaluation_results = exc.results
+            for res in evaluation_results:
+                await create_policy_audit_log(
+                    db,
+                    request_id=request_id,
+                    policy_id=res.policy_id,
+                    effect=res.effect.value,
+                    decision=res.decision,
+                    context={
+                        "sensitivity": final_sensitivity.value,
+                        "tenant": tenant_id,
+                        "service_type": getattr(service, "service_type", "on-prem")
+                    }
+                )
+            raise
+        
+        for res in evaluation_results:
+            await create_policy_audit_log(
+                db,
+                request_id=request_id,
+                policy_id=res.policy_id,
+                effect=res.effect.value,
+                decision=res.decision,
+                context={
+                    "sensitivity": final_sensitivity.value,
+                    "tenant": tenant_id,
+                    "service_type": getattr(service, "service_type", "on-prem")
+                }
+            )
 
         messages: List[Dict[str, str]] = [
             {"role": m.role, "content": m.content} for m in body.payload.messages

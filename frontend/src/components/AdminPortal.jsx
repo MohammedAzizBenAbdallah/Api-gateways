@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import useIntent from "../hooks/useIntent";
 
 const AdminPortal = ({ token, onClose }) => {
+  const [activeTab, setActiveTab] = useState("mappings"); // "mappings", "services"
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -16,7 +18,46 @@ const AdminPortal = ({ token, onClose }) => {
     is_active: true,
   });
 
-  const { intents: mappings } = useIntent();
+  const { intents: mappings, refresh: fetchMappings } = useIntent();
+
+  useEffect(() => {
+    if (activeTab === "services") {
+      fetchServices();
+    }
+  }, [activeTab]);
+
+  const fetchServices = async () => {
+    setLoading(true);
+    try {
+      const resp = await axios.get("/api/service-governance", {
+        headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
+      });
+      setServices(resp.data);
+    } catch (err) {
+      setError("Failed to fetch services");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleServiceType = async (serviceId, currentType) => {
+    const newType = currentType === "cloud" ? "on-prem" : "cloud";
+    setLoading(true);
+    try {
+      await axios.patch(
+        `/api/service-governance/${serviceId}`,
+        { service_type: newType },
+        {
+          headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
+        },
+      );
+      fetchServices();
+    } catch (err) {
+      setError("Failed to update service type");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -126,6 +167,51 @@ const AdminPortal = ({ token, onClose }) => {
         <div
           style={{
             display: "flex",
+            gap: "2rem",
+            marginBottom: "2rem",
+            borderBottom: "1px solid var(--glass-border)",
+            paddingBottom: "1rem",
+          }}
+        >
+          <button
+            onClick={() => setActiveTab("mappings")}
+            style={{
+              background: "none",
+              border: "none",
+              color:
+                activeTab === "mappings"
+                  ? "var(--accent-primary)"
+                  : "var(--text-dim)",
+              fontWeight: activeTab === "mappings" ? "600" : "400",
+              cursor: "pointer",
+              padding: "0 0.5rem",
+              fontSize: "1rem",
+            }}
+          >
+            Intent Mappings
+          </button>
+          <button
+            onClick={() => setActiveTab("services")}
+            style={{
+              background: "none",
+              border: "none",
+              color:
+                activeTab === "services"
+                  ? "var(--accent-primary)"
+                  : "var(--text-dim)",
+              fontWeight: activeTab === "services" ? "600" : "400",
+              cursor: "pointer",
+              padding: "0 0.5rem",
+              fontSize: "1rem",
+            }}
+          >
+            AI Services
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "2rem",
@@ -133,33 +219,39 @@ const AdminPortal = ({ token, onClose }) => {
         >
           <div>
             <h2 style={{ color: "white", marginBottom: "0.5rem" }}>
-              Intent Routing Admin
+              {activeTab === "mappings"
+                ? "Intent Routing Admin"
+                : "AI Service Governance"}
             </h2>
             <p style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>
-              Manage intent-to-service orchestration
+              {activeTab === "mappings"
+                ? "Manage intent-to-service orchestration"
+                : "Classify services for security policy enforcement"}
             </p>
           </div>
-          <div style={{ display: "flex", gap: "1rem" }}>
-            <button className="dashboard-btn" onClick={handleReload}>
-              Reload Cache
-            </button>
-            <button
-              className="dashboard-btn"
-              style={{ background: "var(--accent-primary)" }}
-              onClick={() => {
-                setEditingMapping(null);
-                setFormData({
-                  intent_name: "",
-                  service_id: "",
-                  taxonomy_version: "1.0.0",
-                  is_active: true,
-                });
-                setShowForm(true);
-              }}
-            >
-              + Add Mapping
-            </button>
-          </div>
+          {activeTab === "mappings" && (
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <button className="dashboard-btn" onClick={handleReload}>
+                Reload Cache
+              </button>
+              <button
+                className="dashboard-btn"
+                style={{ background: "var(--accent-primary)" }}
+                onClick={() => {
+                  setEditingMapping(null);
+                  setFormData({
+                    intent_name: "",
+                    service_id: "",
+                    taxonomy_version: "1.0.0",
+                    is_active: true,
+                  });
+                  setShowForm(true);
+                }}
+              >
+                + Add Mapping
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -312,7 +404,7 @@ const AdminPortal = ({ token, onClose }) => {
               </button>
             </div>
           </form>
-        ) : (
+        ) : activeTab === "mappings" ? (
           <div
             style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}
           >
@@ -406,6 +498,73 @@ const AdminPortal = ({ token, onClose }) => {
                     onClick={() => handleDelete(m.id)}
                   >
                     Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}
+          >
+            {services.map((s) => (
+              <div
+                key={s.service_id}
+                style={{
+                  padding: "1rem",
+                  background: "rgba(255,255,255,0.03)",
+                  borderRadius: "16px",
+                  border: "1px solid var(--glass-border)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: "white",
+                      marginBottom: "0.2rem",
+                    }}
+                  >
+                    {s.service_id}
+                  </div>
+                  <div
+                    style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}
+                  >
+                    Model:{" "}
+                    <span style={{ color: "var(--accent-primary)" }}>
+                      {s.model_name}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "1rem" }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      background:
+                        s.service_type === "cloud"
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "rgba(16, 185, 129, 0.1)",
+                      color: s.service_type === "cloud" ? "#60a5fa" : "#34d399",
+                      border: `1px solid ${s.service_type === "cloud" ? "rgba(59, 130, 246, 0.3)" : "rgba(16, 185, 129, 0.3)"}`,
+                    }}
+                  >
+                    {s.service_type.toUpperCase()}
+                  </div>
+                  <button
+                    className="dashboard-btn"
+                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
+                    onClick={() =>
+                      toggleServiceType(s.service_id, s.service_type)
+                    }
+                  >
+                    Switch to {s.service_type === "cloud" ? "On-Prem" : "Cloud"}
                   </button>
                 </div>
               </div>

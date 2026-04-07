@@ -8,7 +8,12 @@ logger = logging.getLogger(__name__)
 from app.models.ai_request import AIRequestRecord
 from app.models.ai_service import AIService
 from app.models.intent_routing import IntentRouting
-from app.models.permission import IntentMappingAuditLog, PermissionAuditLog, TenantServicePermission
+from app.models.permission import (
+    IntentMappingAuditLog,
+    PermissionAuditLog,
+    PolicyEvaluationAuditLog,
+    TenantServicePermission,
+)
 
 __all__ = [
     "AIRequestRecord",
@@ -17,5 +22,6 @@ __all__ = [
     "TenantServicePermission",
     "PermissionAuditLog",
     "IntentMappingAuditLog",
+    "PolicyEvaluationAuditLog",
 ]
 

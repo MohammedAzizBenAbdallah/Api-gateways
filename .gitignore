@@ -71,3 +71,6 @@ services.json
 upstreams.json
 consumers.json
 certificates.json
+
+openapi_debug.json
+verify_governance.py

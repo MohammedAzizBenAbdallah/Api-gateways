@@ -47,3 +47,15 @@ class IntentMappingAuditLog(Base):
     new_value = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
+class PolicyEvaluationAuditLog(Base):
+    __tablename__ = "policy_evaluation_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(String, nullable=False)
+    policy_id = Column(String, nullable=False)
+    effect = Column(String, nullable=False)
+    decision = Column(String, nullable=False)
+    context = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
