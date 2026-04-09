@@ -18,8 +18,13 @@ class Settings(BaseSettings):
     kong_header_value: str = Field(default="true", alias="KONG_HEADER_VALUE")
     environment: str = Field(default="development", alias="ENVIRONMENT")
     policy_file_path: str = Field(default="policies.yaml", alias="POLICY_FILE_PATH")
+    port: int = Field(default=3000, alias="PORT")
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 
 settings = Settings()

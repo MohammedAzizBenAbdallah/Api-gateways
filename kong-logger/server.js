@@ -13,6 +13,7 @@ app.post("/logs", (req, res) => {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`[${new Date().toISOString()}]`);
   console.log(`${log.request?.method} ${log.request?.uri}`);
+  console.log(log.request?.body);
   console.log(`Status  : ${log.response?.status}`);
   console.log(`Latency : ${log.response?.latency}ms`);
 

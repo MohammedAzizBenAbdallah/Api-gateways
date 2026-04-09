@@ -17,6 +17,7 @@ from app.core.exceptions import (
     ServiceNotFoundError,
     TenantIdMissingError,
     TenantNotAuthorizedError,
+    PolicyViolationError,
 )
 from app.infrastructure.ai_provider.ollama_client import chat as ollama_chat
 from app.repositories.ai_request_repository import (

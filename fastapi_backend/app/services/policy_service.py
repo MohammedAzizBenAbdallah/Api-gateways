@@ -16,13 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class PolicyService:
-    """Handles loading, validation and evaluation of YAML policies."""
+    """Handles loading, validation and evaluation of governance policies from the DB."""
 
     def __init__(self) -> None:
         self._policies: List[PolicySchema] = []
         self._version: str = "1.0.0"
-        self._file_path: Optional[str] = None
-        self._last_mtime: float = 0.0
 
     @property
     def policies(self) -> List[PolicySchema]:
@@ -32,60 +30,50 @@ class PolicyService:
     def version(self) -> str:
         return self._version
 
-    def load_policies(self, file_path: str) -> None:
+    async def sync_from_db(self, db: AsyncSession) -> dict:
         """
-        Load policies from a YAML file.
+        Synchronize the in-memory policy cache with the database.
         
-        Args:
-            file_path: Absolute path to the policies.yaml file.
-            
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            ValueError: If the file is invalid YAML or doesn't match the schema.
+        Returns:
+            A dictionary with sync statistics.
         """
-        if not os.path.exists(file_path):
-            logger.error("Policy file not found: %s", file_path)
-            raise FileNotFoundError(f"Policy file not found: {file_path}")
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-
-            if data is None:
-                logger.warning("Policy file %s is empty", file_path)
-                self._policies = []
-                return
-
-            # Validate against Pydantic schema
-            policy_file = PolicyFileSchema(**data)
-            self._policies = policy_file.policies
-            self._version = policy_file.version
-            self._file_path = file_path
-            self._last_mtime = os.path.getmtime(file_path)
+        from app.repositories.policy_repository import list_policies
+        
+        logger.info("[PolicyService] Syncing policies from database...")
+        db_policies = await list_policies(db)
+        
+        new_policies = []
+        # Filter for active policies and convert to Schema
+        for p in db_policies:
+            if not p.is_active:
+                continue
             
-            logger.info(
-                "Successfully loaded %d policies (version %s) from %s",
-                len(self._policies),
-                self._version,
-                file_path,
-            )
+            try:
+                # p.condition is already a dict (JSON column)
+                policy_schema = PolicySchema(
+                    id=p.id,
+                    description=p.description,
+                    condition=p.condition, # Pydantic will validate this dict
+                    effect=p.effect
+                )
+                new_policies.append(policy_schema)
+            except Exception as e:
+                logger.error("Failed to parse policy %s from DB: %s", p.id, str(e))
 
-        except yaml.YAMLError as e:
-            logger.error("YAML parsing error in %s: %s", file_path, str(e))
-            raise ValueError(f"Invalid YAML in policy file: {str(e)}") from e
-            
-        except ValidationError as e:
-            # Format Pydantic errors for better readability
-            errors = e.errors()
-            formatted_errors = []
-            for err in errors:
-                loc = " -> ".join(str(x) for x in err["loc"])
-                msg = err["msg"]
-                formatted_errors.append(f"[{loc}]: {msg}")
-            
-            error_msg = "; ".join(formatted_errors)
-            logger.error("Schema validation error in %s: %s", file_path, error_msg)
-            raise ValueError(f"Policy schema validation failed: {error_msg}") from e
+        self._policies = new_policies
+        # Use the version from the first policy if available, or default
+        if db_policies:
+            self._version = db_policies[0].version
+        
+        logger.info(
+            "Successfully synced %d active policies from database.",
+            len(self._policies)
+        )
+        return {
+            "total_in_db": len(db_policies),
+            "active_synced": len(self._policies),
+            "version": self._version
+        }
 
     def evaluate(self, context: Dict[str, Any]) -> List[PolicyEvaluationResult]:
         """
@@ -100,7 +88,6 @@ class PolicyService:
         Raises:
             PolicyViolationError: If a matching policy should block the request.
         """
-        self.reload_if_needed()
         logger.info("[PolicyService] Evaluating context: %s", context)
         
         from app.core.exceptions import PolicyViolationError
@@ -171,22 +158,5 @@ class PolicyService:
             if context.get("tenant") != condition.tenant:
                 return False
         
-        logger.info("[PolicyService] Policy '%s' matched successfully", policy.id)
+        logger.debug("[PolicyService] Policy '%s' matched successfully", policy.id)
         return True
-
-    def reload_if_needed(self) -> None:
-        """Reload policies if the file has been modified since last load."""
-        if not self._file_path or not os.path.exists(self._file_path):
-            return
-
-        try:
-            current_mtime = os.path.getmtime(self._file_path)
-            if current_mtime > self._last_mtime:
-                logger.info(
-                    "[PolicyService] Policy file changed (mtime: %s > %s). Reloading...",
-                    current_mtime,
-                    self._last_mtime,
-                )
-                self.load_policies(self._file_path)
-        except Exception as e:
-            logger.error("[PolicyService] Failed to hot-reload policies: %s", str(e))
