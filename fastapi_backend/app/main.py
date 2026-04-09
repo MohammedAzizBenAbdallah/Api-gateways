@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin.intent_mappings import router as admin_intent_mappings_router
 from app.api.admin.services import router as admin_services_router
+from app.api.admin.policies import router as admin_policies_router
 from app.api.ai import router as ai_router
 from app.core.config import settings
 from app.core.middleware import verify_kong_header
@@ -21,6 +22,8 @@ from app.core.logging import setup_logging
 from app.infrastructure.ai_provider.ollama_client import chat as _  # noqa: F401
 from app.infrastructure.db.session import AsyncSessionLocal
 from app.infrastructure.nlp.spacy_loader import get_nlp
+from app.models.governance_policy import GovernancePolicy
+from app.schemas.policy import PolicyFileSchema, PolicySchema, PolicyConditionSchema
 from app.services.ai_request_service import AIRequestService
 from app.services.content_inspector_service import ContentInspectorService
 from app.services.intent_cache_service import IntentCacheService
@@ -51,10 +54,37 @@ def _build_intent_mappings_service() -> IntentMappingsService:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load and validate governance policies (fail-fast if invalid)
-    policy_path = os.path.join(os.getcwd(), settings.policy_file_path)
-    logger.info("Initializing Policy Engine from %s", policy_path)
-    policy_service.load_policies(policy_path)
+    # Seeding and Synchronization path
+    import os
+    import yaml
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as db:
+        # Check if DB is empty
+        result = await db.execute(select(GovernancePolicy).limit(1))
+        if not result.scalar_one_or_none():
+            policy_path = os.path.join(os.getcwd(), settings.policy_file_path)
+            if os.path.exists(policy_path):
+                logger.info("Seeding database with policies from %s", policy_path)
+                with open(policy_path, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                    if data and "policies" in data:
+                        for p_data in data["policies"]:
+                            db_policy = GovernancePolicy(
+                                id=p_data.get("id"),
+                                description=p_data.get("description"),
+                                condition=p_data.get("condition"),
+                                effect=p_data.get("effect"),
+                                is_active=True,
+                                version=data.get("version", "1.0.0")
+                            )
+                            db.add(db_policy)
+                        await db.commit()
+            else:
+                logger.warning("No policy seed file found at %s", policy_path)
+
+        # Sync in-memory cache from database
+        await policy_service.sync_from_db(db)
 
     # Fail fast if required external dependencies (spaCy model) are missing.
     _ = get_nlp()
@@ -98,6 +128,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_router, prefix="/api")
     app.include_router(admin_intent_mappings_router, prefix="/api")
     app.include_router(admin_services_router, prefix="/api")
+    app.include_router(admin_policies_router, prefix="/api")
 
     @app.get("/", tags=["Health"])
     async def root() -> dict:

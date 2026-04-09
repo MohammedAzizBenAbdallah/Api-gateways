@@ -48,3 +48,33 @@ class PolicyFileSchema(BaseModel):
     
     version: str = "1.0.0"
     policies: List[PolicySchema]
+
+
+class GovernancePolicyCreate(BaseModel):
+    """Schema for creating a storage-backed policy."""
+    description: Optional[str] = None
+    condition: PolicyConditionSchema
+    effect: PolicyEffect
+    is_active: bool = True
+    version: str = "1.0.0"
+
+
+class GovernancePolicyUpdate(BaseModel):
+    """Schema for updating a storage-backed policy."""
+    description: Optional[str] = None
+    condition: Optional[PolicyConditionSchema] = None
+    effect: Optional[PolicyEffect] = None
+    is_active: Optional[bool] = None
+    version: Optional[str] = None
+
+
+class GovernancePolicyResponse(BaseModel):
+    """Response schema for a governance policy."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: str
+    description: Optional[str] = None
+    condition: PolicyConditionSchema
+    effect: PolicyEffect
+    is_active: bool
+    version: str

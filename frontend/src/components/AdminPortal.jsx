@@ -3,12 +3,14 @@ import axios from "axios";
 import useIntent from "../hooks/useIntent";
 
 const AdminPortal = ({ token, onClose }) => {
-  const [activeTab, setActiveTab] = useState("mappings"); // "mappings", "services"
+  const [activeTab, setActiveTab] = useState("mappings"); // "mappings", "services", "policies"
   const [services, setServices] = useState([]);
+  const [policies, setPolicies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingMapping, setEditingMapping] = useState(null);
+  const [editingPolicy, setEditingPolicy] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -23,8 +25,24 @@ const AdminPortal = ({ token, onClose }) => {
   useEffect(() => {
     if (activeTab === "services") {
       fetchServices();
+    } else if (activeTab === "policies") {
+      fetchPolicies();
     }
   }, [activeTab]);
+
+  const fetchPolicies = async () => {
+    setLoading(true);
+    try {
+      const resp = await axios.get("/api/admin/policies", {
+        headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
+      });
+      setPolicies(resp.data);
+    } catch (err) {
+      setError("Failed to fetch policies");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchServices = async () => {
     setLoading(true);
@@ -63,29 +81,58 @@ const AdminPortal = ({ token, onClose }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (editingMapping) {
-        await axios.put(
-          `/api/admin/intent-mappings/${editingMapping.id}`,
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "kong-header": "true",
-            },
-          },
-        );
-      } else {
-        await axios.post("/api/admin/intent-mappings", formData, {
-          headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
-        });
+      const headers = { Authorization: `Bearer ${token}`, "kong-header": "true" };
+      
+      if (activeTab === "mappings") {
+        if (editingMapping) {
+          await axios.put(`/api/admin/intent-mappings/${editingMapping.id}`, formData, { headers });
+        } else {
+          await axios.post("/api/admin/intent-mappings", formData, { headers });
+        }
+        fetchMappings();
+      } else if (activeTab === "policies") {
+        if (editingPolicy) {
+          await axios.put(`/api/admin/policies/${editingPolicy.id}`, formData, { headers });
+        } else {
+          await axios.post("/api/admin/policies", formData, { headers });
+        }
+        fetchPolicies();
       }
+      
       setShowForm(false);
       setEditingMapping(null);
-      fetchMappings();
+      setEditingPolicy(null);
     } catch (err) {
       setError(err.response?.data?.detail || "Save failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeletePolicy = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this policy?")) return;
+    try {
+      await axios.delete(`/api/admin/policies/${id}`, {
+        headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
+      });
+      fetchPolicies();
+    } catch (err) {
+      setError("Delete failed");
+    }
+  };
+
+  const handleReloadPolicies = async () => {
+    try {
+      await axios.post(
+        "/api/admin/policies/reload",
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
+        },
+      );
+      alert("Policies reloaded successfully!");
+    } catch (err) {
+      setError("Reload failed");
     }
   };
 
@@ -207,6 +254,23 @@ const AdminPortal = ({ token, onClose }) => {
           >
             AI Services
           </button>
+          <button
+            onClick={() => setActiveTab("policies")}
+            style={{
+              background: "none",
+              border: "none",
+              color:
+                activeTab === "policies"
+                  ? "var(--accent-primary)"
+                  : "var(--text-dim)",
+              fontWeight: activeTab === "policies" ? "600" : "400",
+              cursor: "pointer",
+              padding: "0 0.5rem",
+              fontSize: "1rem",
+            }}
+          >
+            Governance Policies
+          </button>
         </div>
 
         <div
@@ -221,34 +285,52 @@ const AdminPortal = ({ token, onClose }) => {
             <h2 style={{ color: "white", marginBottom: "0.5rem" }}>
               {activeTab === "mappings"
                 ? "Intent Routing Admin"
-                : "AI Service Governance"}
+                : activeTab === "services" 
+                  ? "AI Service Governance"
+                  : "Security Policy Management"}
             </h2>
             <p style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>
               {activeTab === "mappings"
                 ? "Manage intent-to-service orchestration"
-                : "Classify services for security policy enforcement"}
+                : activeTab === "services"
+                  ? "Classify services for security policy enforcement"
+                  : "Define automated security guardrails based on context"}
             </p>
           </div>
-          {activeTab === "mappings" && (
+          {(activeTab === "mappings" || activeTab === "policies") && (
             <div style={{ display: "flex", gap: "1rem" }}>
-              <button className="dashboard-btn" onClick={handleReload}>
-                Reload Cache
+              <button 
+                className="dashboard-btn" 
+                onClick={activeTab === "mappings" ? handleReload : handleReloadPolicies}
+              >
+                Reload {activeTab === "mappings" ? "Cache" : "Policies"}
               </button>
               <button
                 className="dashboard-btn"
                 style={{ background: "var(--accent-primary)" }}
                 onClick={() => {
                   setEditingMapping(null);
-                  setFormData({
-                    intent_name: "",
-                    service_id: "",
-                    taxonomy_version: "1.0.0",
-                    is_active: true,
-                  });
+                  setEditingPolicy(null);
+                  if (activeTab === "mappings") {
+                    setFormData({
+                      intent_name: "",
+                      service_id: "",
+                      taxonomy_version: "1.0.0",
+                      is_active: true,
+                    });
+                  } else {
+                    setFormData({
+                      description: "",
+                      condition: { sensitivity: "LOW", tenant: "" },
+                      effect: "deny_cloud",
+                      is_active: true,
+                      version: "1.0.0",
+                    });
+                  }
                   setShowForm(true);
                 }}
               >
-                + Add Mapping
+                + Add {activeTab === "mappings" ? "Mapping" : "Policy"}
               </button>
             </div>
           )}
@@ -273,214 +355,189 @@ const AdminPortal = ({ token, onClose }) => {
             onSubmit={handleSave}
             style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}
           >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1rem",
-              }}
-            >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    color: "var(--text-dim)",
-                    fontSize: "0.85rem",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  Intent Name
-                </label>
-                <input
-                  className="model-select-dropdown"
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    background: "rgba(0,0,0,0.2)",
-                  }}
-                  value={formData.intent_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, intent_name: e.target.value })
-                  }
-                  disabled={!!editingMapping}
-                  placeholder="e.g. general_chat"
-                  required
-                />
-              </div>
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    color: "var(--text-dim)",
-                    fontSize: "0.85rem",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  Service ID
-                </label>
-                <input
-                  className="model-select-dropdown"
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    background: "rgba(0,0,0,0.2)",
-                  }}
-                  value={formData.service_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, service_id: e.target.value })
-                  }
-                  placeholder="e.g. ollama_llama3.2"
-                  required
-                />
-              </div>
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1rem",
-              }}
-            >
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    color: "var(--text-dim)",
-                    fontSize: "0.85rem",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  Taxonomy Version
-                </label>
-                <input
-                  className="model-select-dropdown"
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    background: "rgba(0,0,0,0.2)",
-                  }}
-                  value={formData.taxonomy_version}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      taxonomy_version: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-end",
-                  gap: "1rem",
-                  paddingBottom: "10px",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.is_active}
-                  onChange={(e) =>
-                    setFormData({ ...formData, is_active: e.target.checked })
-                  }
-                />
-                <label style={{ color: "white" }}>Active</label>
-              </div>
-            </div>
+            {activeTab === "mappings" ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div>
+                    <label style={{ display: "block", color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Intent Name</label>
+                    <input
+                      className="model-select-dropdown"
+                      style={{ width: "100%", padding: "12px", background: "rgba(0,0,0,0.2)" }}
+                      value={formData.intent_name}
+                      onChange={(e) => setFormData({ ...formData, intent_name: e.target.value })}
+                      disabled={!!editingMapping}
+                      placeholder="e.g. general_chat"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Service ID</label>
+                    <input
+                      className="model-select-dropdown"
+                      style={{ width: "100%", padding: "12px", background: "rgba(0,0,0,0.2)" }}
+                      value={formData.service_id}
+                      onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
+                      placeholder="e.g. ollama_llama3.2"
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div>
+                    <label style={{ display: "block", color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Taxonomy Version</label>
+                    <input
+                      className="model-select-dropdown"
+                      style={{ width: "100%", padding: "12px", background: "rgba(0,0,0,0.2)" }}
+                      value={formData.taxonomy_version}
+                      onChange={(e) => setFormData({ ...formData, taxonomy_version: e.target.value })}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: "1rem", paddingBottom: "10px" }}>
+                    <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} />
+                    <label style={{ color: "white" }}>Active</label>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <label style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>Policy Description</label>
+                  <textarea
+                    className="model-select-dropdown"
+                    style={{ width: "100%", padding: "12px", background: "rgba(0,0,0,0.2)", minHeight: "80px", border: "1px solid var(--glass-border)", color: "white", borderRadius: "8px" }}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Describe the security rule..."
+                    required
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div>
+                    <label style={{ display: "block", color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Sensitivity Level</label>
+                    <select
+                      className="model-select-dropdown"
+                      style={{ width: "100%", padding: "12px", background: "rgba(0,0,0,0.2)" }}
+                      value={formData.condition?.sensitivity}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        condition: { ...formData.condition, sensitivity: e.target.value } 
+                      })}
+                    >
+                      <option value="LOW">LOW</option>
+                      <option value="MEDIUM">MEDIUM</option>
+                      <option value="HIGH">HIGH</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Tenant ID (Optional)</label>
+                    <input
+                      className="model-select-dropdown"
+                      style={{ width: "100%", padding: "12px", background: "rgba(0,0,0,0.2)" }}
+                      value={formData.condition?.tenant}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        condition: { ...formData.condition, tenant: e.target.value } 
+                      })}
+                      placeholder="Leave empty for all tenants"
+                    />
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div>
+                    <label style={{ display: "block", color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Enforced Effect</label>
+                    <select
+                      className="model-select-dropdown"
+                      style={{ width: "100%", padding: "12px", background: "rgba(0,0,0,0.2)" }}
+                      value={formData.effect}
+                      onChange={(e) => setFormData({ ...formData, effect: e.target.value })}
+                    >
+                      <option value="deny_cloud">Deny Cloud</option>
+                      <option value="allow_onprem_only">On-Prem Only</option>
+                      <option value="block_all">Block All</option>
+                      <option value="allow_all">Allow All (Audit Only)</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: "1rem", paddingBottom: "10px" }}>
+                    <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} />
+                    <label style={{ color: "white" }}>Active Rule</label>
+                  </div>
+                </div>
+              </>
+            )}
             <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
-              <button
-                type="submit"
-                className="dashboard-btn"
-                style={{ flex: 1, background: "var(--accent-primary)" }}
-              >
-                {editingMapping ? "Update" : "Create"}
+              <button type="submit" className="dashboard-btn" style={{ flex: 1, background: "var(--accent-primary)" }}>
+                {editingMapping || editingPolicy ? "Update" : "Create"}
               </button>
-              <button
-                type="button"
-                className="dashboard-btn"
-                style={{ flex: 1 }}
-                onClick={() => setShowForm(false)}
-              >
+              <button type="button" className="dashboard-btn" style={{ flex: 1 }} onClick={() => setShowForm(false)}>
                 Cancel
               </button>
             </div>
           </form>
         ) : activeTab === "mappings" ? (
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
             {mappings.map((m) => (
-              <div
-                key={m.id}
-                style={{
-                  padding: "1rem",
-                  background: "rgba(255,255,255,0.03)",
-                  borderRadius: "16px",
-                  border: "1px solid var(--glass-border)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
+              <div key={m.id} style={{ padding: "1rem", background: "rgba(255,255,255,0.03)", borderRadius: "16px", border: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.8rem",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: "white" }}>
-                      {m.intent_name}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "var(--text-dim)",
-                        background: "rgba(255,b255,255,0.05)",
-                        padding: "2px 8px",
-                        borderRadius: "10px",
-                      }}
-                    >
-                      v{m.taxonomy_version}
-                    </span>
-                    {!m.is_active && (
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          color: "#fca5a5",
-                          background: "rgba(239, 68, 68, 0.1)",
-                          padding: "2px 8px",
-                          borderRadius: "10px",
-                        }}
-                      >
-                        Inactive
-                      </span>
-                    )}
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
+                    <span style={{ fontWeight: 600, color: "white" }}>{m.intent_name}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)", background: "rgba(255,b255,255,0.05)", padding: "2px 8px", borderRadius: "10px" }}>v{m.taxonomy_version}</span>
+                    {!m.is_active && <span style={{ fontSize: "0.7rem", color: "#fca5a5", background: "rgba(239, 68, 68, 0.1)", padding: "2px 8px", borderRadius: "10px" }}>Inactive</span>}
                   </div>
-                  <div
-                    style={{
-                      fontSize: "0.85rem",
-                      color: "var(--text-dim)",
-                      marginTop: "0.3rem",
-                    }}
-                  >
-                    Routes to:{" "}
-                    <code style={{ color: "var(--accent-primary)" }}>
-                      {m.service_id}
-                    </code>
-                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginTop: "0.3rem" }}>Routes to: <code style={{ color: "var(--accent-primary)" }}>{m.service_id}</code></div>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button className="dashboard-btn" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }} onClick={() => { setEditingMapping(m); setFormData({ intent_name: m.intent_name, service_id: m.service_id, taxonomy_version: m.taxonomy_version, is_active: m.is_active }); setShowForm(true); }}>Edit</button>
+                  <button className="dashboard-btn" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#fca5a5" }} onClick={() => handleDelete(m.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : activeTab === "services" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+            {services.map((s) => (
+              <div key={s.service_id} style={{ padding: "1rem", background: "rgba(255,255,255,0.03)", borderRadius: "16px", border: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: "white", marginBottom: "0.2rem" }}>{s.service_id}</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>Model: <span style={{ color: "var(--accent-primary)" }}>{s.model_name}</span></div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                  <div style={{ fontSize: "0.75rem", padding: "4px 12px", borderRadius: "20px", background: s.service_type === "cloud" ? "rgba(59, 130, 246, 0.1)" : "rgba(16, 185, 129, 0.1)", color: s.service_type === "cloud" ? "#60a5fa" : "#34d399", border: `1px solid ${s.service_type === "cloud" ? "rgba(59, 130, 246, 0.3)" : "rgba(16, 185, 129, 0.3)"}` }}>{s.service_type.toUpperCase()}</div>
+                  <button className="dashboard-btn" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }} onClick={() => toggleServiceType(s.service_id, s.service_type)}>Switch to {s.service_type === "cloud" ? "On-Prem" : "Cloud"}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+            {policies.map((p) => (
+              <div key={p.id} style={{ padding: "1.2rem", background: "rgba(255,255,255,0.03)", borderRadius: "16px", border: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.8rem", marginBottom: "0.6rem" }}>
+                    <span style={{ fontWeight: 600, color: "white" }}>{p.effect.replace("_", " ").toUpperCase()}</span>
+                    <span style={{ fontSize: "0.7rem", color: "#60a5fa", background: "rgba(59, 130, 246, 0.1)", padding: "2px 8px", borderRadius: "10px", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+                      {p.condition.sensitivity} SENSITIVITY
+                    </span>
+                    {p.condition.tenant && (
+                      <span style={{ fontSize: "0.7rem", color: "#34d399", background: "rgba(16, 185, 129, 0.1)", padding: "2px 8px", borderRadius: "10px", border: "1px solid rgba(16, 185, 129, 0.2)" }}>
+                        TENANT: {p.condition.tenant}
+                      </span>
+                    )}
+                    {!p.is_active && <span style={{ fontSize: "0.7rem", color: "#fca5a5", background: "rgba(239, 68, 68, 0.1)", padding: "2px 8px", borderRadius: "10px" }}>Disabled</span>}
+                  </div>
+                  <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", lineHeight: "1.4", margin: 0 }}>{p.description}</p>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginLeft: "1.5rem" }}>
                   <button
                     className="dashboard-btn"
                     style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
                     onClick={() => {
-                      setEditingMapping(m);
+                      setEditingPolicy(p);
                       setFormData({
-                        intent_name: m.intent_name,
-                        service_id: m.service_id,
-                        taxonomy_version: m.taxonomy_version,
-                        is_active: m.is_active,
+                        description: p.description,
+                        condition: p.condition,
+                        effect: p.effect,
+                        is_active: p.is_active,
+                        version: p.version,
                       });
                       setShowForm(true);
                     }}
@@ -489,82 +546,10 @@ const AdminPortal = ({ token, onClose }) => {
                   </button>
                   <button
                     className="dashboard-btn"
-                    style={{
-                      padding: "0.4rem 0.8rem",
-                      fontSize: "0.8rem",
-                      borderColor: "rgba(239, 68, 68, 0.3)",
-                      color: "#fca5a5",
-                    }}
-                    onClick={() => handleDelete(m.id)}
+                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#fca5a5" }}
+                    onClick={() => handleDeletePolicy(p.id)}
                   >
                     Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}
-          >
-            {services.map((s) => (
-              <div
-                key={s.service_id}
-                style={{
-                  padding: "1rem",
-                  background: "rgba(255,255,255,0.03)",
-                  borderRadius: "16px",
-                  border: "1px solid var(--glass-border)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      color: "white",
-                      marginBottom: "0.2rem",
-                    }}
-                  >
-                    {s.service_id}
-                  </div>
-                  <div
-                    style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}
-                  >
-                    Model:{" "}
-                    <span style={{ color: "var(--accent-primary)" }}>
-                      {s.model_name}
-                    </span>
-                  </div>
-                </div>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "1rem" }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      background:
-                        s.service_type === "cloud"
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "rgba(16, 185, 129, 0.1)",
-                      color: s.service_type === "cloud" ? "#60a5fa" : "#34d399",
-                      border: `1px solid ${s.service_type === "cloud" ? "rgba(59, 130, 246, 0.3)" : "rgba(16, 185, 129, 0.3)"}`,
-                    }}
-                  >
-                    {s.service_type.toUpperCase()}
-                  </div>
-                  <button
-                    className="dashboard-btn"
-                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
-                    onClick={() =>
-                      toggleServiceType(s.service_id, s.service_type)
-                    }
-                  >
-                    Switch to {s.service_type === "cloud" ? "On-Prem" : "Cloud"}
                   </button>
                 </div>
               </div>
