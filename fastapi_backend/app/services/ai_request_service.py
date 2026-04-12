@@ -18,7 +18,9 @@ from app.core.exceptions import (
     TenantIdMissingError,
     TenantNotAuthorizedError,
     PolicyViolationError,
+    QuotaExceededError,
 )
+from app.repositories.usage_repository import create_usage_log as _create_usage_log
 from app.infrastructure.ai_provider.ollama_client import chat as ollama_chat
 from app.repositories.ai_request_repository import (
     create_ai_request,
@@ -31,6 +33,7 @@ from app.repositories.policy_audit_repository import create_policy_audit_log
 from app.services.content_inspector_service import ContentInspectorService
 from app.services.intent_cache_service import IntentCacheService
 from app.services.policy_service import PolicyService
+from app.services.quota_service import QuotaService
 
 
 logger = logging.getLogger(__name__)
@@ -45,11 +48,13 @@ class AIRequestService:
         intent_cache_service: IntentCacheService,
         content_inspector_service: ContentInspectorService,
         policy_service: PolicyService,
+        quota_service: QuotaService,
         session_factory: Any,
     ) -> None:
         self._intent_cache_service = intent_cache_service
         self._content_inspector_service = content_inspector_service
         self._policy_service = policy_service
+        self._quota_service = quota_service
         self._session_factory = session_factory
 
     async def _update_status_in_new_session(
@@ -96,6 +101,12 @@ class AIRequestService:
         )
         if not is_allowed:
             raise TenantNotAuthorizedError(tenant_id=tenant_id, service_id=resolved_service_id)
+
+        # ── Quota Check (Redis) ──
+        has_quota = await self._quota_service.check_quota(tenant_id)
+        if not has_quota:
+            logger.warning("[QuotaEngine] Tenant %s exceeded token quota", tenant_id)
+            raise QuotaExceededError(tenant_id=tenant_id)
 
         service = await get_ai_service_by_id(db, service_id=resolved_service_id)
         if service is None:
@@ -185,7 +196,12 @@ class AIRequestService:
         outbound_model = service.model_name
         outbound_provider_url = service.provider_url
 
+        # ── Initialization Pulse ──
+        # Send an immediate empty packet to trigger frontend typing dots.
+        # This prevents the UI from "hanging" while waiting for Ollama to load the model.
         async def _event_stream() -> AsyncIterator[str]:
+            yield "data: " + json.dumps({"token": "", "done": False}) + "\n\n"
+            
             first_token = True
             try:
                 stream_iter = await ollama_chat(
@@ -201,18 +217,55 @@ class AIRequestService:
                     token = chunk.get("token", "") or ""
                     done = bool(chunk.get("done", False))
 
+                    if token and not done:
+                        if first_token:
+                            first_token = False
+                            await self._update_status_in_new_session(
+                                request_id=request_id,
+                                status="streaming",
+                            )
+                        yield "data: " + json.dumps({"token": token, "done": False}) + "\n\n"
+
                     if done:
+                        # Extract usage info if available
+                        usage = chunk.get("usage")
+                        current_quota = None
+                        
+                        if usage:
+                            prompt_tokens = usage.get("prompt_eval_count", 0)
+                            eval_tokens = usage.get("eval_count", 0)
+                            
+                            # Persist usage to Postgres
+                            async with self._session_factory() as session:
+                                await _create_usage_log(
+                                    session,
+                                    request_id=request_id,
+                                    tenant_id=tenant_id,
+                                    service_id=resolved_service_id,
+                                    model_name=outbound_model,
+                                    input_tokens=prompt_tokens,
+                                    output_tokens=eval_tokens
+                                )
+                            
+                            # Update Redis usage
+                            await self._quota_service.increment_usage(tenant_id, prompt_tokens + eval_tokens)
+                            
+                        # Fetch latest quota status for push (regardless of current request usage)
+                        current_quota = await self._quota_service.get_quota_status(tenant_id)
+
                         yield (
                             "data: "
                             + json.dumps(
                                 {
-                                    "token": "",
+                                    "token": token, # Include final token if present in done chunk
                                     "done": True,
                                     "request_id": request_id,
                                     "resolved_service": resolved_service_id,
                                     "intent": intent_name,
                                     "resolved_sensitivity": final_sensitivity.value,
                                     "detected_pii_types": detected_pii_types,
+                                    "usage": usage,
+                                    "quota": current_quota
                                 }
                             )
                             + "\n\n"
@@ -275,6 +328,12 @@ class AIRequestService:
         )
         if not is_allowed:
             raise TenantNotAuthorizedError(tenant_id=tenant_id, service_id=resolved_service_id)
+
+        # ── Quota Check (Redis) ──
+        has_quota = await self._quota_service.check_quota(tenant_id)
+        if not has_quota:
+            logger.warning("[QuotaEngine] Tenant %s exceeded token quota", tenant_id)
+            raise QuotaExceededError(tenant_id=tenant_id)
 
         service = await get_ai_service_by_id(db, service_id=resolved_service_id)
         if service is None:
@@ -380,20 +439,40 @@ class AIRequestService:
             finally:
                 raise ProviderError(f"Failed to connect to AI provider: {str(exc)}")
 
+        # Usage tracking for JSON
+        usage = provider_data.get("usage", {})
+        prompt_tokens = usage.get("prompt_eval_count", 0)
+        eval_tokens = usage.get("eval_count", 0)
+        
+        async with self._session_factory() as session:
+            await _create_usage_log(
+                session,
+                request_id=request_id,
+                tenant_id=tenant_id,
+                service_id=resolved_service_id,
+                model_name=outbound_body_model,
+                input_tokens=prompt_tokens,
+                output_tokens=eval_tokens
+            )
+        
+        await self._quota_service.increment_usage(tenant_id, prompt_tokens + eval_tokens)
+        
+        # Push latest quota status
+        current_quota = await self._quota_service.get_quota_status(tenant_id)
+
         await self._update_status_in_new_session(
             request_id=request_id,
             status="completed",
             completed_at=datetime.utcnow(),
         )
 
-        # We do not have provider RTT from here (ollama_client currently returns JSON without timing metadata),
-        # but we preserve the payload and a minimal debug header set in the router if needed.
         return {
             "data": {
                 "request_id": request_id,
                 "intent": intent_name,
                 "resolved_service": resolved_service_id,
                 "response": provider_data,
+                "quota": current_quota
             },
             "response_headers": {
                 "x-kong-proxy-latency": "1",

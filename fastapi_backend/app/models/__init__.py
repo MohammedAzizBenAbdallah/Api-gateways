@@ -16,6 +16,8 @@ from app.models.permission import (
     TenantServicePermission,
 )
 
+from app.models.usage import UsageTokenLog
+
 __all__ = [
     "AIRequestRecord",
     "AIService",
@@ -24,6 +26,10 @@ __all__ = [
     "PermissionAuditLog",
     "IntentMappingAuditLog",
     "PolicyEvaluationAuditLog",
+
     "GovernancePolicy",
+
+    "UsageTokenLog",
+
 ]
 

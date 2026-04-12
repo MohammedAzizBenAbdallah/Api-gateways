@@ -1,0 +1,23 @@
+# quotas.yaml
+# Source of truth for tenant-level token governance.
+# Max tokens allowed per reset period.
+
+tenants:
+  - id: "tenant-a"
+    max_tokens: 100000
+    reset_period: "daily"
+    is_active: true
+
+  - id: "acme-corp"
+    max_tokens: 50000
+    reset_period: "daily"
+    is_active: true
+
+  - id: "globex"
+    max_tokens: 25000
+    reset_period: "daily"
+    is_active: true
+
+defaults:
+  max_tokens: 10000
+  reset_period: "daily"

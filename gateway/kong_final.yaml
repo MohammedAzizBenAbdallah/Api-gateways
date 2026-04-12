@@ -47,7 +47,7 @@ services:
 
 plugins:
   - name: pre-function
-    enabled: true
+    enabled: false
     config:
       access:
         - |

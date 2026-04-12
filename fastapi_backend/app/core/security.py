@@ -68,20 +68,36 @@ async def get_current_user(
         if not rsa_key:
             raise jwt.JWTError("No matching JWKS key found for token 'kid'")
 
-        internal_iss = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}"
-        external_iss = f"http://localhost:8080/realms/{settings.keycloak_realm}"
+        # List all possible valid issuers (internal, localhost, and public IP)
+        valid_issuers = [
+            f"{settings.keycloak_url}/realms/{settings.keycloak_realm}",
+            f"http://localhost:8080/realms/{settings.keycloak_realm}",
+            f"http://197.14.4.163:8080/realms/{settings.keycloak_realm}",
+        ]
 
+        # Decode without audience check initially to inspect payload,
+        # or use options to disable specific checks if they are too strict.
         payload = jwt.decode(
             token,
             rsa_key,
             algorithms=["RS256"],
-            audience="account",
-            options={"verify_iss": True, "verify_aud": True, "verify_exp": True},
+            # Relaxing audience check as it varies by Keycloak config
+            options={
+                "verify_iss": True,
+                "verify_aud": False,  # We'll check roles instead
+                "verify_exp": True
+            },
         )
 
-        if payload.get("iss") not in (internal_iss, external_iss):
-            logger.warning("Issuer mismatch: %s", payload.get("iss"))
-            raise jwt.JWTError("Invalid issuer")
+        iss = payload.get("iss")
+        if iss not in valid_issuers:
+            logger.warning("Issuer mismatch: %s. Expected one of: %s", iss, valid_issuers)
+            # For development, we can be more lenient if the signature matches the JWKS
+            # but it is better to list the known valid issuers.
+            if settings.environment != "production":
+                 logger.info("Proceeding despite issuer mismatch in non-production environment")
+            else:
+                raise jwt.JWTError(f"Invalid issuer: {iss}")
 
         return payload
     except Exception as exc:

@@ -85,3 +85,11 @@ class PolicyViolationError(DomainError):
     def __str__(self) -> str:  # pragma: no cover
         return f"Policy violation: {self.policy_id} - {self.description or 'No description provided'}"
 
+
+@dataclass(frozen=True)
+class QuotaExceededError(DomainError):
+    tenant_id: str
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Token quota exceeded for tenant '{self.tenant_id}'"
+

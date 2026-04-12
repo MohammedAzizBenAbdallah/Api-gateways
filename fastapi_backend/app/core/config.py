@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", alias="ENVIRONMENT")
     policy_file_path: str = Field(default="policies.yaml", alias="POLICY_FILE_PATH")
     port: int = Field(default=3000, alias="PORT")
+    redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
+    quotas_file_path: str = Field(default="quotas.yaml", alias="QUOTAS_FILE_PATH")
 
     model_config = SettingsConfigDict(
         env_file=".env", 
