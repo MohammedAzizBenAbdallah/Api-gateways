@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import useAuth from "../hooks/useAuth";
 import useIntent from "../hooks/useIntent";
 import mapIntents from "../../services/mapIntents";
+import QuotaStatus from "./QuotaStatus";
 
 // ── Blinking cursor keyframe injected once at module level ────────────────
 const CURSOR_STYLE = `
@@ -32,6 +33,16 @@ const AIChat = ({
   onOpenAdmin,
 }) => {
   const { token } = useAuth();
+  
+  const [isDarkMode, setIsDarkMode] = useState(() => !document.body.classList.contains("light-theme"));
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.body.classList.remove("light-theme");
+    } else {
+      document.body.classList.add("light-theme");
+    }
+  }, [isDarkMode]);
 
   const [messages, setMessages] = useState([
     {
@@ -46,6 +57,8 @@ const AIChat = ({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false); // true = waiting for first token
   const [showDocs, setShowDocs] = useState(false);
+  const [quotaRefreshTrigger, setQuotaRefreshTrigger] = useState(0);
+  const [pushedQuota, setPushedQuota] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -59,7 +72,7 @@ const AIChat = ({
     { value: "HIGH", label: "🔴 High", color: "#f87171" },
   ];
 
-  const [selectedIntent, setSelectedIntent] = useState(null);
+  const [selectedIntent, setSelectedIntent] = useState("");
 
   // Update selectedIntent when INTENTS are loaded
   useEffect(() => {
@@ -250,6 +263,8 @@ const AIChat = ({
 
           // ── Final event: seal the message ────────────────────────────
           if (data.done) {
+            setQuotaRefreshTrigger((prev) => prev + 1);
+            if (data.quota) setPushedQuota(data.quota);
             if (data.resolved_service)
               setResolvedService(data.resolved_service);
             setMessages((prev) => {
@@ -351,7 +366,31 @@ const AIChat = ({
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "0.8rem" }}>
+        <div style={{ display: "flex", gap: "1.5rem", alignItems: "center" }}>
+        <QuotaStatus 
+            token={token} 
+            trigger={quotaRefreshTrigger} 
+            pushedData={pushedQuota}
+          />
+          <div style={{ display: "flex", gap: "0.8rem", alignItems: "center" }}>
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            style={{
+              background: "rgba(128, 128, 128, 0.2)",
+              border: "1px solid var(--glass-border)",
+              color: isDarkMode ? "#fbbf24" : "#4f46e5",
+              cursor: "pointer",
+              fontSize: "1.2rem",
+              padding: "0.3rem 0.5rem",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? "☀️" : "🌙"}
+          </button>
           {isAdmin && (
             <button
               className="dashboard-btn"
@@ -385,6 +424,7 @@ const AIChat = ({
           >
             Logout
           </button>
+        </div>
         </div>
       </div>
 
@@ -635,7 +675,7 @@ const AIChat = ({
             {/* Intent selector */}
             <select
               className="model-select-dropdown"
-              value={selectedIntent}
+              value={selectedIntent || ""}
               onChange={(e) => {
                 setSelectedIntent(e.target.value);
                 setResolvedService(null);

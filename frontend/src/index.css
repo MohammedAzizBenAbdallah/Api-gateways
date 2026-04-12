@@ -334,3 +334,48 @@ body {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--accent-primary);
 }
+
+/* Light Theme Overrides */
+body.light-theme {
+  --bg-deep: #f8fafc;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --accent-primary: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.2);
+  --user-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --ai-gradient: linear-gradient(135deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.02) 100%);
+  --glass-border: rgba(0, 0, 0, 0.15);
+  --text-dim: #475569;
+  color: #0f172a;
+  background-color: var(--bg-deep);
+}
+
+body.light-theme .admin-portal-overlay {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+body.light-theme .admin-card h2,
+body.light-theme .admin-card span[style*="color: white"],
+body.light-theme .admin-card div[style*="color: white"] {
+  color: #0f172a !important;
+}
+
+body.light-theme .chat-window {
+  background: radial-gradient(circle at top right, #e2e8f0, #f8fafc);
+}
+
+body.light-theme .dashboard-btn {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+body.light-theme .dashboard-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: var(--accent-primary);
+}
+
+body.light-theme .model-select-dropdown {
+  background: white !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(0,0,0,0.2) !important;
+}

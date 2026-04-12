@@ -27,9 +27,6 @@ async def chat(
 
     if not stream:
         outbound_body: Dict[str, Any] = {"messages": messages}
-        # Match the historical behavior:
-        # - Ollama-compatible providers send {model, messages, stream: False}
-        # - Other providers receive only {messages}
         if model is not None:
             outbound_body["model"] = model
             outbound_body["stream"] = False
@@ -37,7 +34,14 @@ async def chat(
         async with httpx.AsyncClient() as client:
             resp = await client.post(provider_url, json=outbound_body, timeout=120.0)
             resp.raise_for_status()
-            return resp.json()
+            data = resp.json()
+            
+            # Extract usage metadata
+            usage = {
+                "prompt_eval_count": data.get("prompt_eval_count", 0),
+                "eval_count": data.get("eval_count", 0)
+            }
+            return {"response": data, "usage": usage}
 
     async def _generator() -> AsyncIterator[Dict[str, Any]]:
         outbound_body: Dict[str, Any] = {"messages": messages}
@@ -51,7 +55,7 @@ async def chat(
                     "POST",
                     provider_url,
                     json=outbound_body,
-                    timeout=None,
+                    timeout=httpx.Timeout(60.0, connect=10.0),
                 ) as r:
                     async for line in r.aiter_lines():
                         if not line.strip():
@@ -63,7 +67,16 @@ async def chat(
 
                         token = chunk.get("message", {}).get("content", "") or ""
                         done = bool(chunk.get("done", False))
-                        yield {"token": token, "done": done}
+                        
+                        # Pack usage data into the final chunk
+                        usage = None
+                        if done:
+                            usage = {
+                                "prompt_eval_count": chunk.get("prompt_eval_count", 0),
+                                "eval_count": chunk.get("eval_count", 0)
+                            }
+                        
+                        yield {"token": token, "done": done, "usage": usage}
             except Exception as exc:  # pragma: no cover
                 logger.exception("AI provider stream failed: %s", exc)
                 raise

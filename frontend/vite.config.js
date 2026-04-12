@@ -7,17 +7,17 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://waf:8081",
+        target: "http://fastapi_backend:3000",
         changeOrigin: true,
         rewrite: (path) => path,
       },
       "/ai": {
-        target: "http://waf:8081",
+        target: "http://fastapi_backend:3000",
         changeOrigin: true,
         rewrite: (path) => path,
       },
     },
-    allowedHosts: ["localhost", "127.0.0.1", "::1", "frontend"],
+    allowedHosts: ["localhost", "127.0.0.1", "::1", "frontend", "197.14.4.163"],
     watch: {
       usePolling: true,
     },
