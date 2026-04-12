@@ -155,11 +155,15 @@ services:
       KEYCLOAK_REALM: newRealm
       # Internal Docker network connection to platform-db on 5432
       PLATFORM_DB_URL: postgresql://platform_admin:platform_pass@platform-db:5432/platform_permissions
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: http://localhost:5173,http://localhost:3000,http://localhost:8000,http://localhost:8081,http://197.14.4.163:8000,http://197.14.4.163:5173
+      REDIS_URL: redis://redis:6379/0
+      QUOTAS_FILE_PATH: quotas.yaml
     ports:
       - "3000:3000"
     volumes:
       - ./fastapi_backend:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - keycloak
       - platform-db
@@ -173,6 +177,8 @@ services:
       VITE_KEYCLOAK_URL: http://localhost:8080
       VITE_KEYCLOAK_REALM: newRealm
       VITE_KEYCLOAK_CLIENT_ID: myclient
+      # The URL Kong serves the frontend on (or the dev server directly)
+      VITE_APP_URL: http://localhost:5173
     ports:
       - "5173:5173"
     volumes:
@@ -215,6 +221,44 @@ services:
       - ./backend/scripts/init-platform-db.sql:/docker-entrypoint-initdb.d/init-platform-db.sql
     ports:
       - "5433:5432" # Map to 5433 to avoid conflict with Kong DB on host if needed
+
+  # --- Cache & Counters ---
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Observability & Monitoring ---
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      default:
+        aliases:
+          - prometheus
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
 
 volumes:
   keycloak_data: {}

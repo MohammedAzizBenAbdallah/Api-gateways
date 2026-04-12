@@ -14,7 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.admin.intent_mappings import router as admin_intent_mappings_router
 from app.api.admin.services import router as admin_services_router
 from app.api.admin.policies import router as admin_policies_router
+from app.api.admin.metrics import router as admin_metrics_router
 from app.api.ai import router as ai_router
+from app.api.governance import router as governance_router
 from app.core.config import settings
 from app.core.middleware import verify_kong_header
 from app.core.security import get_current_user
@@ -29,6 +31,8 @@ from app.services.content_inspector_service import ContentInspectorService
 from app.services.intent_cache_service import IntentCacheService
 from app.services.intent_mappings_service import IntentMappingsService
 from app.services.policy_service import PolicyService
+from app.services.quota_service import QuotaService
+from prometheus_fastapi_instrumentator import Instrumentator
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -37,6 +41,10 @@ logger = logging.getLogger(__name__)
 content_inspector_service = ContentInspectorService()
 intent_cache_service = IntentCacheService(session_factory=AsyncSessionLocal)
 policy_service = PolicyService()
+quota_service = QuotaService(
+    quotas_file=settings.quotas_file_path,
+    redis_url=settings.redis_url
+)
 
 
 def _build_ai_request_service() -> AIRequestService:
@@ -44,6 +52,7 @@ def _build_ai_request_service() -> AIRequestService:
         intent_cache_service=intent_cache_service,
         content_inspector_service=content_inspector_service,
         policy_service=policy_service,
+        quota_service=quota_service,
         session_factory=AsyncSessionLocal,
     )
 
@@ -58,6 +67,16 @@ async def lifespan(app: FastAPI):
     import os
     import yaml
     from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from app.models.base import Base
+    import app.models  # ensure all model metadata is registered
+    from app.infrastructure.db.session import ASYNC_DATABASE_URL
+
+    # Auto-create all tables if they don't exist (fallback when Alembic hasn't run)
+    engine = create_async_engine(ASYNC_DATABASE_URL)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    await engine.dispose()
 
     async with AsyncSessionLocal() as db:
         # Check if DB is empty
@@ -115,10 +134,12 @@ def create_app() -> FastAPI:
     app.state.ai_request_service = _build_ai_request_service()
     app.state.intent_mappings_service = _build_intent_mappings_service()
     app.state.policy_service = policy_service
+    app.state.quota_service = quota_service
 
+    cors_origins = [o.strip() for o in settings.cors_origin.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.cors_origin],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -129,6 +150,11 @@ def create_app() -> FastAPI:
     app.include_router(admin_intent_mappings_router, prefix="/api")
     app.include_router(admin_services_router, prefix="/api")
     app.include_router(admin_policies_router, prefix="/api")
+    app.include_router(admin_metrics_router, prefix="/api")
+    app.include_router(governance_router, prefix="/api")
+
+    # Instrument for Prometheus
+    Instrumentator().instrument(app).expose(app)
 
     @app.get("/", tags=["Health"])
     async def root() -> dict:
