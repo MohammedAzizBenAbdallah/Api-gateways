@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import IntentMappingAlreadyExistsError, IntentMappingNotFoundError
 from app.core.middleware import verify_kong_header
 from app.core.security import require_admin
-from app.infrastructure.db.session import get_db
+from app.infrastructure.db.session import get_db, get_db_with_user
 from app.schemas.intent_mapping import (
     IntentMappingCreateSchema,
     IntentMappingResponseSchema,
@@ -35,7 +35,7 @@ def get_intent_mappings_service(request: Request) -> IntentMappingsService:
     dependencies=[Depends(verify_kong_header)],
 )
 async def list_mappings(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> List[IntentMappingResponseSchema]:
@@ -50,7 +50,7 @@ async def list_mappings(
 )
 async def get_mapping(
     mapping_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> IntentMappingResponseSchema:
@@ -68,7 +68,7 @@ async def get_mapping(
 )
 async def create_mapping(
     payload: IntentMappingCreateSchema,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> IntentMappingResponseSchema:
@@ -91,7 +91,7 @@ async def create_mapping(
 async def update_mapping(
     mapping_id: str,
     payload: IntentMappingUpdateSchema,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> IntentMappingResponseSchema:
@@ -114,7 +114,7 @@ async def update_mapping(
 )
 async def delete_mapping(
     mapping_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> IntentMappingResponseSchema:
@@ -132,7 +132,7 @@ async def delete_mapping(
 @router.post("/reload", dependencies=[Depends(verify_kong_header)])
 async def reload_cache(
     admin_user: Dict[str, Any] = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> Dict[str, Any]:
     _ = admin_user

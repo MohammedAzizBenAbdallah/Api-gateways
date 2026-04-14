@@ -204,8 +204,8 @@ const AdminPortal = ({ token, onClose }) => {
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0,0,0,0.85)",
-        backdropFilter: "blur(8px)",
+        background: "var(--overlay-bg)",
+        backdropFilter: "blur(12px)",
         zIndex: 1000,
         display: "flex",
         alignItems: "center",
@@ -328,7 +328,7 @@ const AdminPortal = ({ token, onClose }) => {
           }}
         >
           <div>
-            <h2 style={{ color: "white", marginBottom: "0.5rem" }}>
+            <h2 style={{ color: "var(--text-header)", marginBottom: "0.5rem" }}>
               {activeTab === "mappings"
                 ? "Intent Routing Admin"
                 : activeTab === "services" 
@@ -523,13 +523,13 @@ const AdminPortal = ({ token, onClose }) => {
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             {/* Real Token Quota (Redux/Redis simulation) */}
             <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "rgba(59, 130, 246, 0.05)" }}>
-              <h3 style={{ color: "var(--accent-primary)", marginBottom: "1rem", fontSize: "1.1rem" }}>Token Quota & Cost</h3>
+                <h3 style={{ color: "var(--text-header)", marginBottom: "1rem", fontSize: "1.1rem" }}>Token Quota & Cost</h3>
               {loading ? (
                 <p style={{ color: "var(--text-dim)" }}>Loading live quota data...</p>
               ) : quotaStatus ? (
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                    <span style={{ color: "white" }}>Tenant: <b>{quotaStatus.tenant_id}</b></span>
+                    <span style={{ color: "var(--text-header)" }}>Tenant: <b>{quotaStatus.tenant_id}</b></span>
                     <span style={{ color: "var(--text-dim)" }}>Limit: {quotaStatus.daily_limit?.toLocaleString()} details</span>
                   </div>
                   <div style={{ height: "12px", background: "rgba(255,255,255,0.1)", borderRadius: "999px", overflow: "hidden", marginBottom: "0.5rem" }}>
@@ -547,14 +547,14 @@ const AdminPortal = ({ token, onClose }) => {
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                  <div style={{ background: "rgba(0,0,0,0.1)", padding: "1rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ background: "var(--bg-card)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)" }}>
                     <span style={{ color: "var(--text-dim)", fontSize: "0.8rem", display: "block" }}>Top Consumer Today</span>
-                    <span style={{ color: "white", fontSize: "1.2rem", fontWeight: "bold" }}>{dashboardMetrics?.cost?.top_consumer || "None"}</span>
+                    <span style={{ color: "var(--text-header)", fontSize: "1.2rem", fontWeight: "bold" }}>{dashboardMetrics?.cost?.top_consumer || "None"}</span>
                     <span style={{ color: "var(--accent-primary)", fontSize: "0.8rem", display: "block", marginTop: "4px" }}>Active Traffic Detected</span>
                   </div>
-                  <div style={{ background: "rgba(0,0,0,0.1)", padding: "1rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ background: "var(--bg-card)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)" }}>
                     <span style={{ color: "var(--text-dim)", fontSize: "0.8rem", display: "block" }}>Projected Cost</span>
-                    <span style={{ color: "white", fontSize: "1.2rem", fontWeight: "bold" }}>${dashboardMetrics?.cost?.projected_cost?.toFixed(3) || "0.000"}</span>
+                    <span style={{ color: "var(--text-header)", fontSize: "1.2rem", fontWeight: "bold" }}>${dashboardMetrics?.cost?.projected_cost?.toFixed(3) || "0.000"}</span>
                     <span style={{ color: "#34d399", fontSize: "0.8rem", display: "block", marginTop: "4px" }}>Real-time DB Calc</span>
                   </div>
                 </div>
@@ -568,12 +568,12 @@ const AdminPortal = ({ token, onClose }) => {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
               {/* Request Health */}
-              <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "rgba(255,255,255,0.02)" }}>
-                <h3 style={{ color: "white", marginBottom: "1rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>🩺 Request Health</h3>
+              <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "var(--bg-card)", boxShadow: "var(--shadow-premium)" }}>
+                <h3 style={{ color: "var(--text-header)", marginBottom: "1rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>🩺 Request Health</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-dim)" }}>Total Requests (24h)</span>
-                    <span style={{ color: "white", fontWeight: "bold" }}>{dashboardMetrics?.health?.total_requests || 0}</span>
+                    <span style={{ color: "var(--text-header)", fontWeight: "bold" }}>{dashboardMetrics?.health?.total_requests || 0}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-dim)" }}>Success Rate</span>
@@ -581,7 +581,7 @@ const AdminPortal = ({ token, onClose }) => {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-dim)" }}>Top Intent</span>
-                    <span style={{ color: "white" }}>{dashboardMetrics?.health?.top_intent || "N/A"}</span>
+                    <span style={{ color: "var(--text-header)" }}>{dashboardMetrics?.health?.top_intent || "N/A"}</span>
                   </div>
                 </div>
               </div>
@@ -596,7 +596,7 @@ const AdminPortal = ({ token, onClose }) => {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-dim)" }}>Prompt Injections Detect</span>
-                    <span style={{ color: "white" }}>{dashboardMetrics?.security?.prompt_injections || 0}</span>
+                    <span style={{ color: "var(--text-header)" }}>{dashboardMetrics?.security?.prompt_injections || 0}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-dim)" }}>PII Auto-Upgrades</span>
@@ -606,8 +606,8 @@ const AdminPortal = ({ token, onClose }) => {
               </div>
 
               {/* Routing Decisions */}
-              <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "rgba(255,255,255,0.02)" }}>
-                <h3 style={{ color: "white", marginBottom: "1rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>🔀 Routing Decisions</h3>
+              <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "var(--bg-card)", boxShadow: "var(--shadow-premium)" }}>
+                <h3 style={{ color: "var(--text-header)", marginBottom: "1rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>🔀 Routing Decisions</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-dim)" }}>Cloud Fallback Traffic</span>
@@ -625,8 +625,8 @@ const AdminPortal = ({ token, onClose }) => {
               </div>
 
               {/* System Health */}
-              <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "rgba(255,255,255,0.02)" }}>
-                <h3 style={{ color: "white", marginBottom: "1rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>⚙️ System Health</h3>
+              <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "var(--bg-card)", boxShadow: "var(--shadow-premium)" }}>
+                <h3 style={{ color: "var(--text-header)", marginBottom: "1rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>⚙️ System Health</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>FastAPI Pipeline Latency</span>
@@ -648,11 +648,11 @@ const AdminPortal = ({ token, onClose }) => {
         ) : activeTab === "mappings" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
             {mappings.map((m) => (
-              <div key={m.id} style={{ padding: "1rem", background: "rgba(255,255,255,0.03)", borderRadius: "16px", border: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div key={m.id} style={{ padding: "1rem", background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
-                    <span style={{ fontWeight: 600, color: "white" }}>{m.intent_name}</span>
-                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)", background: "rgba(255,b255,255,0.05)", padding: "2px 8px", borderRadius: "10px" }}>v{m.taxonomy_version}</span>
+                    <span style={{ fontWeight: 600, color: "var(--text-header)" }}>{m.intent_name}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)", background: "var(--bg-deep)", padding: "2px 8px", borderRadius: "10px" }}>v{m.taxonomy_version}</span>
                     {!m.is_active && <span style={{ fontSize: "0.7rem", color: "#fca5a5", background: "rgba(239, 68, 68, 0.1)", padding: "2px 8px", borderRadius: "10px" }}>Inactive</span>}
                   </div>
                   <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginTop: "0.3rem" }}>Routes to: <code style={{ color: "var(--accent-primary)" }}>{m.service_id}</code></div>
@@ -667,9 +667,9 @@ const AdminPortal = ({ token, onClose }) => {
         ) : activeTab === "services" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
             {services.map((s) => (
-              <div key={s.service_id} style={{ padding: "1rem", background: "rgba(255,255,255,0.03)", borderRadius: "16px", border: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div key={s.service_id} style={{ padding: "1rem", background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontWeight: 600, color: "white", marginBottom: "0.2rem" }}>{s.service_id}</div>
+                  <div style={{ fontWeight: 600, color: "var(--text-header)", marginBottom: "0.2rem" }}>{s.service_id}</div>
                   <div style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>Model: <span style={{ color: "var(--accent-primary)" }}>{s.model_name}</span></div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
@@ -682,10 +682,10 @@ const AdminPortal = ({ token, onClose }) => {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
             {policies.map((p) => (
-              <div key={p.id} style={{ padding: "1.2rem", background: "rgba(255,255,255,0.03)", borderRadius: "16px", border: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div key={p.id} style={{ padding: "1.2rem", background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.8rem", marginBottom: "0.6rem" }}>
-                    <span style={{ fontWeight: 600, color: "white" }}>{p.effect.replace("_", " ").toUpperCase()}</span>
+                    <span style={{ fontWeight: 600, color: "var(--text-header)" }}>{p.effect.replace("_", " ").toUpperCase()}</span>
                     <span style={{ fontSize: "0.7rem", color: "#60a5fa", background: "rgba(59, 130, 246, 0.1)", padding: "2px 8px", borderRadius: "10px", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
                       {p.condition.sensitivity} SENSITIVITY
                     </span>

@@ -128,3 +128,35 @@ VALUES
     ('acme-corp', 'ollama-llama3', TRUE, 'admin'),
     ('globex', 'ollama-llama3', TRUE, 'admin')
 ON CONFLICT DO NOTHING;
+-- 10. Enable Row-Level Security (RLS)
+-- We apply this to tables containing tenant-specific data to ensure isolation.
+
+-- ai_requests
+ALTER TABLE ai_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_requests FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_policy ON ai_requests
+    USING (current_setting('app.is_admin', true) = 'true' OR tenant_id = current_setting('app.current_tenant', true));
+
+-- tenant_service_permissions
+ALTER TABLE tenant_service_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_service_permissions FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_policy ON tenant_service_permissions
+    USING (current_setting('app.is_admin', true) = 'true' OR tenant_id = current_setting('app.current_tenant', true));
+
+-- permission_audit_logs
+ALTER TABLE permission_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE permission_audit_logs FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_policy ON permission_audit_logs
+    USING (current_setting('app.is_admin', true) = 'true' OR tenant_id = current_setting('app.current_tenant', true));
+
+-- usage_token_logs
+ALTER TABLE usage_token_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usage_token_logs FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_policy ON usage_token_logs
+    USING (current_setting('app.is_admin', true) = 'true' OR tenant_id = current_setting('app.current_tenant', true));
+
+-- security_events
+ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_policy ON security_events
+    USING (current_setting('app.is_admin', true) = 'true' OR tenant_id = current_setting('app.current_tenant', true));

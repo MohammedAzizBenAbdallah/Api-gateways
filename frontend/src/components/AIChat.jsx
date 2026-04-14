@@ -61,6 +61,7 @@ const AIChat = ({
   const [pushedQuota, setPushedQuota] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   // ── Intent definitions ────────────────────────────────────────────────────
   const { intents } = useIntent();
@@ -124,10 +125,14 @@ const AIChat = ({
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
-    setIsLoading(true); // show typing dots while waiting for first token
+    setIsLoading(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const response = await fetch("/api/ai/request", {
+        signal: controller.signal,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -294,21 +299,53 @@ const AIChat = ({
         }
       }
     } catch (err) {
-      console.error("AI Chat Error:", err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, I'm having trouble connecting to the AI service.",
-          timestamp: new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-          isError: true,
-        },
-      ]);
+      if (err.name === "AbortError") {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant" && last?.isStreaming) {
+            updated[updated.length - 1] = {
+              ...last,
+              isStreaming: false,
+              isCancelled: true,
+            };
+          } else {
+            updated.push({
+              role: "assistant",
+              content: "",
+              timestamp: new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              isCancelled: true,
+            });
+          }
+          return updated;
+        });
+      } else {
+        console.error("AI Chat Error:", err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Sorry, I'm having trouble connecting to the AI service.",
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            isError: true,
+          },
+        ]);
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -350,8 +387,8 @@ const AIChat = ({
                     fontWeight: 500,
                     padding: "2px 8px",
                     borderRadius: "999px",
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "var(--glass-border)",
+                    border: "1px solid var(--glass-border)",
                     color: "var(--text-dim)",
                     letterSpacing: "0.02em",
                   }}
@@ -397,7 +434,8 @@ const AIChat = ({
               onClick={onOpenAdmin}
               style={{
                 borderColor: "var(--accent-primary)",
-                background: "rgba(59, 130, 246, 0.1)",
+                background: isDarkMode ? "rgba(59, 130, 246, 0.1)" : "rgba(79, 70, 229, 0.08)",
+                fontWeight: 600,
               }}
             >
               Intent Admin
@@ -451,7 +489,7 @@ const AIChat = ({
           >
             <div
               className="message-bubble"
-              style={{ width: "100%", background: "rgba(255,255,255,0.03)" }}
+              style={{ width: "100%", background: "var(--bg-deep)" }}
             >
               <div
                 style={{
@@ -488,10 +526,11 @@ const AIChat = ({
                     key={doc.id}
                     style={{
                       padding: "0.5rem",
-                      background: "rgba(0,0,0,0.2)",
+                      background: "var(--bg-card)",
                       borderRadius: "8px",
                       fontSize: "0.85rem",
                       border: "1px solid var(--glass-border)",
+                      color: "var(--text-main)",
                     }}
                   >
                     ▹ {doc.name}
@@ -517,11 +556,23 @@ const AIChat = ({
                 width: "100%",
               }}
             >
-              <div className="message-bubble">
-                {/* Content + blinking cursor while streaming */}
-                <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
-                {m.isStreaming && (
-                  <span className="ai-cursor" aria-hidden="true" />
+              <div className={`message-bubble ${m.isCancelled ? "cancelled-bubble" : ""}`}>
+                {m.isCancelled ? (
+                  <div className="cancelled-message">
+                    {m.content && (
+                      <span style={{ whiteSpace: "pre-wrap", display: "block", marginBottom: "0.5rem" }}>
+                        {m.content}
+                      </span>
+                    )}
+                    <span className="cancelled-label">User cancelled response</span>
+                  </div>
+                ) : (
+                  <>
+                    <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
+                    {m.isStreaming && (
+                      <span className="ai-cursor" aria-hidden="true" />
+                    )}
+                  </>
                 )}
 
                 {/* Kong Metrics */}
@@ -692,20 +743,32 @@ const AIChat = ({
                 <option>Loading intents...</option>
               )}
             </select>
-            <button
-              className="send-btn-pill"
-              onClick={handleSend}
-              disabled={isActive || !input.trim()}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                fill="currentColor"
+            {isActive ? (
+              <button
+                className="send-btn-pill stop-btn"
+                onClick={handleCancel}
+                title="Cancel response"
               >
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-              </svg>
-            </button>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                className="send-btn-pill"
+                onClick={handleSend}
+                disabled={!input.trim()}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="currentColor"
+                >
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>

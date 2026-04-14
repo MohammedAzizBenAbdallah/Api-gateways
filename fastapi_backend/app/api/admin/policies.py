@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.middleware import verify_kong_header
 from app.core.security import require_admin
-from app.infrastructure.db.session import get_db
+from app.infrastructure.db.session import get_db, get_db_with_user
 from app.schemas.policy import (
     GovernancePolicyCreate,
     GovernancePolicyResponse,
@@ -41,7 +41,7 @@ def get_policy_service(request: Request) -> PolicyService:
     dependencies=[Depends(verify_kong_header)],
 )
 async def list_governance_policies(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
 ) -> List[GovernancePolicyResponse]:
     _ = admin_user
@@ -55,7 +55,7 @@ async def list_governance_policies(
 )
 async def get_governance_policy(
     policy_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
 ) -> GovernancePolicyResponse:
     _ = admin_user
@@ -72,7 +72,7 @@ async def get_governance_policy(
 )
 async def create_governance_policy(
     payload: GovernancePolicyCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     policy_service: PolicyService = Depends(get_policy_service),
 ) -> GovernancePolicyResponse:
@@ -91,7 +91,7 @@ async def create_governance_policy(
 async def update_governance_policy(
     policy_id: str,
     payload: GovernancePolicyUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     policy_service: PolicyService = Depends(get_policy_service),
 ) -> GovernancePolicyResponse:
@@ -111,7 +111,7 @@ async def update_governance_policy(
 )
 async def delete_governance_policy(
     policy_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
     policy_service: PolicyService = Depends(get_policy_service),
 ) -> Dict[str, Any]:

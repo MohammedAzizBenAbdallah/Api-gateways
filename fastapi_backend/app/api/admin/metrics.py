@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.middleware import verify_kong_header
 from app.core.security import get_current_user
-from app.infrastructure.db.session import get_db
+from app.infrastructure.db.session import get_db, get_db_with_user
 from app.models.ai_request import AIRequestRecord
 from app.models.ai_service import AIService
 from app.models.usage import UsageTokenLog
@@ -23,7 +23,7 @@ router = APIRouter(
 )
 
 @router.get("")
-async def get_dashboard_metrics(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def get_dashboard_metrics(db: AsyncSession = Depends(get_db_with_user)) -> Dict[str, Any]:
     """Retrieve realtime platform aggregation metrics."""
     now = datetime.utcnow()
     yesterday = now - timedelta(days=1)
