@@ -39,7 +39,7 @@ async def submit_ai_request(
     body: AIRequestSchema,
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     current_user: Dict[str, Any] = Depends(get_current_user),
     nlp: Any = Depends(get_nlp),
     ai_request_service: AIRequestService = Depends(get_ai_request_service),

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.middleware import verify_kong_header
 from app.core.security import require_admin
-from app.infrastructure.db.session import get_db
+from app.infrastructure.db.session import get_db, get_db_with_user
 from app.repositories.ai_service_repository import list_ai_services, update_ai_service_type
 from app.schemas.ai_service import AIServiceResponseSchema, AIServiceUpdateSchema
 
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/service-governance", tags=["Admin - Services"])
     dependencies=[Depends(verify_kong_header)],
 )
 async def get_services(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
 ) -> List[AIServiceResponseSchema]:
     _ = admin_user
@@ -42,7 +42,7 @@ async def get_services(
 async def update_service(
     service_id: str,
     payload: AIServiceUpdateSchema,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     admin_user: Dict[str, Any] = Depends(require_admin),
 ) -> AIServiceResponseSchema:
     _ = admin_user

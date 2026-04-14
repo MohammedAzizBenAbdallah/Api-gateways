@@ -74,6 +74,8 @@ class AIRequestService:
         error_detail: Optional[str] = None,
     ) -> None:
         async with self._session_factory() as session:
+            from sqlalchemy import text
+            await session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
             await update_ai_request_status(
                 session,
                 request_id=request_id,
@@ -206,6 +208,7 @@ class AIRequestService:
         if scan_result.is_blocked:
             # Log security event before blocking
             async with self._session_factory() as sec_session:
+                await sec_session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                 await create_security_event(
                     sec_session,
                     event_type="prompt_injection",
@@ -230,6 +233,7 @@ class AIRequestService:
         elif scan_result.matched_patterns:
             # Low-score match: allow but log for auditing
             async with self._session_factory() as sec_session:
+                await sec_session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                 await create_security_event(
                     sec_session,
                     event_type="prompt_injection",
@@ -291,6 +295,7 @@ class AIRequestService:
                             
                             # Persist usage to Postgres
                             async with self._session_factory() as session:
+                                await session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                                 await _create_usage_log(
                                     session,
                                     request_id=request_id,
@@ -314,6 +319,7 @@ class AIRequestService:
                             final_token = final_redacted.redacted_text
                             if final_redacted.redaction_count > 0:
                                 async with self._session_factory() as sec_session:
+                                    await sec_session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                                     await create_security_event(
                                         sec_session,
                                         event_type="pii_redaction",
@@ -490,6 +496,7 @@ class AIRequestService:
         scan_result = self._prompt_security.scan_messages(messages)
         if scan_result.is_blocked:
             async with self._session_factory() as sec_session:
+                await sec_session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                 await create_security_event(
                     sec_session,
                     event_type="prompt_injection",
@@ -513,6 +520,7 @@ class AIRequestService:
             )
         elif scan_result.matched_patterns:
             async with self._session_factory() as sec_session:
+                await sec_session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                 await create_security_event(
                     sec_session,
                     event_type="prompt_injection",
@@ -554,6 +562,7 @@ class AIRequestService:
         eval_tokens = usage.get("eval_count", 0)
         
         async with self._session_factory() as session:
+            await session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
             await _create_usage_log(
                 session,
                 request_id=request_id,
@@ -584,6 +593,7 @@ class AIRequestService:
                 if "message" in provider_data:
                     provider_data["message"]["content"] = redaction_result.redacted_text
                 async with self._session_factory() as sec_session:
+                    await sec_session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                     await create_security_event(
                         sec_session,
                         event_type="pii_redaction",

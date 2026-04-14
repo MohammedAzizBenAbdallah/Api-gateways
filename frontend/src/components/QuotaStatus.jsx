@@ -60,7 +60,7 @@ const QuotaStatus = ({ token, trigger, pushedData }) => {
           }} 
         />
       </div>
-      <div className="quota-footer">
+      <div className="quota-footer" style={{ color: "var(--text-dim)", opacity: 1, fontWeight: 500 }}>
         {used_tokens.toLocaleString()} / {max_tokens.toLocaleString()} used
       </div>
 
@@ -73,6 +73,7 @@ const QuotaStatus = ({ token, trigger, pushedData }) => {
           min-width: 180px;
           backdrop-filter: blur(10px);
           font-family: inherit;
+          transition: all 0.3s ease;
         }
         .quota-info {
           display: flex;
@@ -111,7 +112,7 @@ const QuotaStatus = ({ token, trigger, pushedData }) => {
         .quota-skeleton {
           height: 50px;
           width: 180px;
-          background: rgba(255, 255, 255, 0.05);
+          background: var(--glass-border);
           border-radius: 12px;
           animation: pulse 1.5s infinite;
         }
