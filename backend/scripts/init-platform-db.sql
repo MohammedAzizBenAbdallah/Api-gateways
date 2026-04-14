@@ -93,6 +93,22 @@ CREATE TABLE IF NOT EXISTS usage_token_logs (
     created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 9. Security Events (Prompt Injection Blocks, PII Redactions)
+CREATE TABLE IF NOT EXISTS security_events (
+    id                SERIAL PRIMARY KEY,
+    event_type        VARCHAR(50) NOT NULL,
+    tenant_id         VARCHAR(255) NOT NULL,
+    request_id        VARCHAR(255),
+    prompt_hash       VARCHAR(64),
+    matched_patterns  TEXT,
+    score             DECIMAL(5, 2),
+    decision          VARCHAR(20) NOT NULL,
+    redacted_types    TEXT,
+    redaction_count   INTEGER DEFAULT 0,
+    metadata_extra    TEXT,
+    created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Seed Initial Data
 INSERT INTO ai_services (service_id, model_name, provider_url, provider_type, description, service_type)
 VALUES 

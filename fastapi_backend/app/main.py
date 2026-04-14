@@ -30,7 +30,9 @@ from app.services.ai_request_service import AIRequestService
 from app.services.content_inspector_service import ContentInspectorService
 from app.services.intent_cache_service import IntentCacheService
 from app.services.intent_mappings_service import IntentMappingsService
+from app.services.output_guard_service import OutputGuardService
 from app.services.policy_service import PolicyService
+from app.services.prompt_security_service import PromptSecurityService
 from app.services.quota_service import QuotaService
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -45,6 +47,8 @@ quota_service = QuotaService(
     quotas_file=settings.quotas_file_path,
     redis_url=settings.redis_url
 )
+prompt_security_service = PromptSecurityService()
+output_guard_service = OutputGuardService()
 
 
 def _build_ai_request_service() -> AIRequestService:
@@ -53,6 +57,8 @@ def _build_ai_request_service() -> AIRequestService:
         content_inspector_service=content_inspector_service,
         policy_service=policy_service,
         quota_service=quota_service,
+        prompt_security_service=prompt_security_service,
+        output_guard_service=output_guard_service,
         session_factory=AsyncSessionLocal,
     )
 

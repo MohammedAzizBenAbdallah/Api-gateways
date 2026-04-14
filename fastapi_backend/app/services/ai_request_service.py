@@ -19,6 +19,7 @@ from app.core.exceptions import (
     TenantNotAuthorizedError,
     PolicyViolationError,
     QuotaExceededError,
+    SecurityViolationError,
 )
 from app.repositories.usage_repository import create_usage_log as _create_usage_log
 from app.infrastructure.ai_provider.ollama_client import chat as ollama_chat
@@ -30,9 +31,12 @@ from app.repositories.ai_request_repository import (
 from app.repositories.ai_service_repository import get_ai_service_by_id
 from app.repositories.permission_repository import check_tenant_service_permission_and_audit
 from app.repositories.policy_audit_repository import create_policy_audit_log
+from app.repositories.security_event_repository import create_security_event
 from app.services.content_inspector_service import ContentInspectorService
 from app.services.intent_cache_service import IntentCacheService
+from app.services.output_guard_service import OutputGuardService
 from app.services.policy_service import PolicyService
+from app.services.prompt_security_service import PromptSecurityService
 from app.services.quota_service import QuotaService
 
 
@@ -49,12 +53,16 @@ class AIRequestService:
         content_inspector_service: ContentInspectorService,
         policy_service: PolicyService,
         quota_service: QuotaService,
+        prompt_security_service: PromptSecurityService,
+        output_guard_service: OutputGuardService,
         session_factory: Any,
     ) -> None:
         self._intent_cache_service = intent_cache_service
         self._content_inspector_service = content_inspector_service
         self._policy_service = policy_service
         self._quota_service = quota_service
+        self._prompt_security = prompt_security_service
+        self._output_guard = output_guard_service
         self._session_factory = session_factory
 
     async def _update_status_in_new_session(
@@ -193,6 +201,46 @@ class AIRequestService:
             {"role": m.role, "content": m.content} for m in body.payload.messages
         ]
 
+        # ── Prompt Security Scan (Input Shield) ──
+        scan_result = self._prompt_security.scan_messages(messages)
+        if scan_result.is_blocked:
+            # Log security event before blocking
+            async with self._session_factory() as sec_session:
+                await create_security_event(
+                    sec_session,
+                    event_type="prompt_injection",
+                    tenant_id=tenant_id,
+                    request_id=request_id,
+                    prompt_hash=scan_result.prompt_hash,
+                    matched_patterns=scan_result.matched_patterns,
+                    score=scan_result.total_score,
+                    decision="blocked",
+                )
+            await self._update_status_in_new_session(
+                request_id=request_id,
+                status="blocked",
+                completed_at=datetime.utcnow(),
+                error_detail=f"Prompt injection detected: {scan_result.matched_patterns}",
+            )
+            raise SecurityViolationError(
+                prompt_hash=scan_result.prompt_hash,
+                matched_patterns=scan_result.matched_patterns,
+                score=scan_result.total_score,
+            )
+        elif scan_result.matched_patterns:
+            # Low-score match: allow but log for auditing
+            async with self._session_factory() as sec_session:
+                await create_security_event(
+                    sec_session,
+                    event_type="prompt_injection",
+                    tenant_id=tenant_id,
+                    request_id=request_id,
+                    prompt_hash=scan_result.prompt_hash,
+                    matched_patterns=scan_result.matched_patterns,
+                    score=scan_result.total_score,
+                    decision="allowed",
+                )
+
         outbound_model = service.model_name
         outbound_provider_url = service.provider_url
 
@@ -213,6 +261,7 @@ class AIRequestService:
                 if stream_iter is None:
                     raise ProviderError("Provider stream returned no iterator")
 
+                carry_buffer = ""
                 async for chunk in stream_iter:
                     token = chunk.get("token", "") or ""
                     done = bool(chunk.get("done", False))
@@ -224,7 +273,12 @@ class AIRequestService:
                                 request_id=request_id,
                                 status="streaming",
                             )
-                        yield "data: " + json.dumps({"token": token, "done": False}) + "\n\n"
+                        # ── Output Guard: windowed PII redaction ──
+                        safe_text, carry_buffer = self._output_guard.redact_stream_chunk(
+                            token, carry_buffer
+                        )
+                        if safe_text:
+                            yield "data: " + json.dumps({"token": safe_text, "done": False}) + "\n\n"
 
                     if done:
                         # Extract usage info if available
@@ -253,11 +307,28 @@ class AIRequestService:
                         # Fetch latest quota status for push (regardless of current request usage)
                         current_quota = await self._quota_service.get_quota_status(tenant_id)
 
+                        # Flush remaining carry buffer with redaction
+                        final_token = carry_buffer + (token or "")
+                        if final_token:
+                            final_redacted = self._output_guard.redact(final_token)
+                            final_token = final_redacted.redacted_text
+                            if final_redacted.redaction_count > 0:
+                                async with self._session_factory() as sec_session:
+                                    await create_security_event(
+                                        sec_session,
+                                        event_type="pii_redaction",
+                                        tenant_id=tenant_id,
+                                        request_id=request_id,
+                                        decision="redacted",
+                                        redacted_types=final_redacted.redacted_types,
+                                        redaction_count=final_redacted.redaction_count,
+                                    )
+
                         yield (
                             "data: "
                             + json.dumps(
                                 {
-                                    "token": token, # Include final token if present in done chunk
+                                    "token": final_token,
                                     "done": True,
                                     "request_id": request_id,
                                     "resolved_service": resolved_service_id,
@@ -415,6 +486,44 @@ class AIRequestService:
             {"role": m.role, "content": m.content} for m in body.payload.messages
         ]
 
+        # ── Prompt Security Scan (Input Shield) ──
+        scan_result = self._prompt_security.scan_messages(messages)
+        if scan_result.is_blocked:
+            async with self._session_factory() as sec_session:
+                await create_security_event(
+                    sec_session,
+                    event_type="prompt_injection",
+                    tenant_id=tenant_id,
+                    request_id=request_id,
+                    prompt_hash=scan_result.prompt_hash,
+                    matched_patterns=scan_result.matched_patterns,
+                    score=scan_result.total_score,
+                    decision="blocked",
+                )
+            await self._update_status_in_new_session(
+                request_id=request_id,
+                status="blocked",
+                completed_at=datetime.utcnow(),
+                error_detail=f"Prompt injection detected: {scan_result.matched_patterns}",
+            )
+            raise SecurityViolationError(
+                prompt_hash=scan_result.prompt_hash,
+                matched_patterns=scan_result.matched_patterns,
+                score=scan_result.total_score,
+            )
+        elif scan_result.matched_patterns:
+            async with self._session_factory() as sec_session:
+                await create_security_event(
+                    sec_session,
+                    event_type="prompt_injection",
+                    tenant_id=tenant_id,
+                    request_id=request_id,
+                    prompt_hash=scan_result.prompt_hash,
+                    matched_patterns=scan_result.matched_patterns,
+                    score=scan_result.total_score,
+                    decision="allowed",
+                )
+
         outbound_body_model = service.model_name
         outbound_provider_url = service.provider_url
 
@@ -465,6 +574,25 @@ class AIRequestService:
             status="completed",
             completed_at=datetime.utcnow(),
         )
+
+        # ── Output Guard: Full PII redaction on JSON response ──
+        response_text = provider_data.get("message", {}).get("content", "")
+        if response_text:
+            redaction_result = self._output_guard.redact(response_text)
+            if redaction_result.redaction_count > 0:
+                # Replace the response content with redacted version
+                if "message" in provider_data:
+                    provider_data["message"]["content"] = redaction_result.redacted_text
+                async with self._session_factory() as sec_session:
+                    await create_security_event(
+                        sec_session,
+                        event_type="pii_redaction",
+                        tenant_id=tenant_id,
+                        request_id=request_id,
+                        decision="redacted",
+                        redacted_types=redaction_result.redacted_types,
+                        redaction_count=redaction_result.redaction_count,
+                    )
 
         return {
             "data": {

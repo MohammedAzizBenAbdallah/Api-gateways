@@ -18,6 +18,8 @@ from app.core.exceptions import (
     TenantIdMissingError,
     TenantNotAuthorizedError,
     PolicyViolationError,
+    QuotaExceededError,
+    SecurityViolationError,
 )
 from app.core.middleware import verify_kong_header
 from app.core.security import get_current_user
@@ -88,6 +90,10 @@ async def submit_ai_request(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except PolicyViolationError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except SecurityViolationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except QuotaExceededError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ProviderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

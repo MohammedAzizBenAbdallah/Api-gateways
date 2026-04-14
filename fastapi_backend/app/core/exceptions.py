@@ -93,3 +93,14 @@ class QuotaExceededError(DomainError):
     def __str__(self) -> str:  # pragma: no cover
         return f"Token quota exceeded for tenant '{self.tenant_id}'"
 
+
+@dataclass(frozen=True)
+class SecurityViolationError(DomainError):
+    """Raised when a prompt injection or jailbreak attempt is detected."""
+    prompt_hash: str
+    matched_patterns: List[str]
+    score: float
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Security violation: prompt blocked (score={self.score}, patterns={self.matched_patterns})"
+

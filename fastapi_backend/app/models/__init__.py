@@ -18,6 +18,8 @@ from app.models.permission import (
 
 from app.models.usage import UsageTokenLog
 
+from app.models.security_event import SecurityEvent
+
 __all__ = [
     "AIRequestRecord",
     "AIService",
@@ -31,5 +33,8 @@ __all__ = [
 
     "UsageTokenLog",
 
+    "SecurityEvent",
+
 ]
+
 
