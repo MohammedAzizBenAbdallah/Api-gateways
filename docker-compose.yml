@@ -25,9 +25,10 @@ services:
       ANOMALY_INBOUND: 5 # score threshold to block a request
       ANOMALY_OUTBOUND: 4
 
+    restart: on-failure
     depends_on:
       kong:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./waf/99-exclusions.sh:/docker-entrypoint.d/99-exclusions.sh
       - ./waf/logs/modsec_audit.log:/var/log/modsec_audit.log # Map specific audit log file
@@ -39,6 +40,11 @@ services:
       POSTGRESQL_USER: keycloak
       POSTGRESQL_PASSWORD: password
       POSTGRESQL_ADMIN_PASSWORD: password
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - keycloak_data:/var/lib/pgsql/data
 
@@ -135,10 +141,14 @@ services:
       - "8443:8443"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: on-failure
     depends_on:
-      - kong-db
-      - kong-migrations
-      - keycloak
+      kong-db:
+        condition: service_healthy
+      kong-migrations:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
@@ -164,9 +174,12 @@ services:
       - ./fastapi_backend:/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: on-failure
     depends_on:
-      - keycloak
-      - platform-db
+      keycloak:
+        condition: service_started
+      platform-db:
+        condition: service_healthy
 
   # --- Frontend Application ---
   frontend:
@@ -216,6 +229,11 @@ services:
       POSTGRES_USER: platform_admin
       POSTGRES_DB: platform_permissions
       POSTGRES_PASSWORD: platform_pass
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "platform_admin", "-d", "platform_permissions"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - platform_db_data:/var/lib/postgresql/data
       - ./backend/scripts/init-platform-db.sql:/docker-entrypoint-initdb.d/init-platform-db.sql
