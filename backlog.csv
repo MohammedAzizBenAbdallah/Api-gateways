@@ -1,0 +1,13 @@
+  Deterministic Enterprise AI Orchestration — Product Backlog,Unnamed: 1,Unnamed: 2,Unnamed: 3,Unnamed: 4,Unnamed: 5,Unnamed: 6,Unnamed: 7,Unnamed: 8
+8-Week Sprint Roadmap  |  8 Epics  |  52 Issues  |  230+ Story Points,,,,,,,,
+,,,,,,,,
+Sprint,Weeks,Sprint Theme,Epics Covered,Key Deliverables,User Stories,Story Points,Risk Level,Status
+Sprint 1,Wk 1–2,Foundation & Edge Security,EPIC 1,"Kong API Gateway, TLS termination, rate limiting, ModSecurity WAF (OWASP CRS), IP filtering, payload size limits, structured request logging",6,34,HIGH,Planned
+Sprint 2,Wk 2–3,Identity & Authentication,EPIC 2,"JWT validation middleware, Keycloak SSO OIDC flow, OAuth 2.0 client_credentials for service accounts, tenant_id injection, cross-tenant blocking middleware",5,29,HIGH,Planned
+Sprint 3,Wk 3–4,Orchestrator Core — API & Classification,EPIC 3 (Part A),"/ai/request REST endpoint, Pydantic schema validation, request metadata persistence, intent taxonomy YAML, ML intent classifier microservice, content/metadata inspector",7,34,CRITICAL,Planned
+Sprint 4,Wk 4–5,Deterministic Routing & Execution Proxy,EPIC 3 (Part B) + EPIC 4,"RoutingMap engine, no-fallback routing enforcement, routing decision audit log, AI service registry, ExecutionProxy handler, response capture, service-to-service proxy enforcement",9,37,CRITICAL,Planned
+Sprint 5,Wk 5–6,Governance & Policy Engine,EPIC 5,"Policy DSL/YAML schema, per-request policy evaluator (OPA), data sensitivity enforcement, environment isolation rules, token usage tracking, per-tenant quota system with Redis, quota rejection middleware",7,37,HIGH,Planned
+Sprint 6,Wk 6–7,Database Security & Secrets Management,EPIC 6,"PostgreSQL Row Level Security, ORM tenant_id global filter, HashiCorp Vault integration, API key encryption, secrets rotation policy, least-privilege DB roles",5,26,MEDIUM,Planned
+Sprint 7,Wk 7–8,AI Guardrails & Output Safety,EPIC 7,"Prompt injection scanner, jailbreak pattern detector, malicious prompt audit logging, JSON schema output validator, PII redaction (Microsoft Presidio), hallucination anomaly guard",6,29,HIGH,Planned
+Sprint 8,Wk 8,"Observability, Testing & Go-Live",EPIC 8,"Prometheus metrics instrumentation, Grafana dashboards, per-request audit trail, token usage aggregation, end-to-end pytest integration suite, Locust load tests, OWASP ZAP pen test",7,27,MEDIUM,Planned
+TOTALS,,,,,52,253,,

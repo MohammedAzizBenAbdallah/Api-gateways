@@ -7,12 +7,12 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://fastapi_backend:3000",
+        target: "http://kong-gateway:8000",
         changeOrigin: true,
         rewrite: (path) => path,
       },
       "/ai": {
-        target: "http://fastapi_backend:3000",
+        target: "http://kong-gateway:8000",
         changeOrigin: true,
         rewrite: (path) => path,
       },

@@ -20,6 +20,8 @@ from app.models.usage import UsageTokenLog
 
 from app.models.security_event import SecurityEvent
 
+from app.models.security_pattern import SecurityPattern
+
 __all__ = [
     "AIRequestRecord",
     "AIService",
@@ -34,6 +36,8 @@ __all__ = [
     "UsageTokenLog",
 
     "SecurityEvent",
+
+    "SecurityPattern",
 
 ]
 

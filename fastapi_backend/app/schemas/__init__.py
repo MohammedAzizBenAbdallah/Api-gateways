@@ -5,3 +5,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+from app.schemas.security_pattern import (
+    SecurityPatternBase,
+    SecurityPatternCreate,
+    SecurityPatternUpdate,
+    SecurityPatternOut,
+)
+
+__all__ = [
+    "SecurityPatternBase",
+    "SecurityPatternCreate",
+    "SecurityPatternUpdate",
+    "SecurityPatternOut",
+]

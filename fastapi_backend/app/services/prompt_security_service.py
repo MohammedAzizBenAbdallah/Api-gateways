@@ -12,6 +12,9 @@ import logging
 import re
 from dataclasses import dataclass, field
 from typing import List, Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.security_pattern import SecurityPattern
 
 logger = logging.getLogger(__name__)
 
@@ -180,10 +183,39 @@ class PromptSecurityService:
         self._threshold = block_threshold
         self._patterns = list(INJECTION_PATTERNS)
         logger.info(
-            "[PromptSecurity] Initialized with %d patterns, threshold=%.1f",
+            "[PromptSecurity] Initialized with %d fallback patterns, threshold=%.1f",
             len(self._patterns),
             self._threshold,
         )
+
+    async def reload_patterns(self, session: AsyncSession) -> None:
+        """Load active security patterns from the database and replace the active set."""
+        result = await session.execute(
+            select(SecurityPattern).where(SecurityPattern.is_active == True)
+        )
+        db_patterns = result.scalars().all()
+        
+        new_patterns = []
+        for pat in db_patterns:
+            try:
+                compiled = re.compile(pat.pattern, re.IGNORECASE)
+                new_patterns.append(
+                    InjectionPattern(
+                        name=pat.name,
+                        pattern=compiled,
+                        weight=float(pat.weight),
+                        description=pat.description or ""
+                    )
+                )
+            except re.error as exc:
+                logger.error("[PromptSecurity] Failed to compile DB pattern '%s': %s", pat.name, exc)
+                
+        if new_patterns:
+            self._patterns = new_patterns
+            logger.info("[PromptSecurity] Reloaded %d active patterns from database.", len(self._patterns))
+        else:
+            logger.warning("[PromptSecurity] No active patterns found in DB, falling back to static list.")
+            self._patterns = list(INJECTION_PATTERNS)
 
     def scan(self, prompt_text: str) -> ScanResult:
         """Scan a prompt and return a ScanResult.

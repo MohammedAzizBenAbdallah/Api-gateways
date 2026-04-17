@@ -23,7 +23,7 @@ from app.core.exceptions import (
 )
 from app.core.middleware import verify_kong_header
 from app.core.security import get_current_user
-from app.infrastructure.db.session import get_db
+from app.infrastructure.db.session import get_db, get_db_with_user
 from app.infrastructure.ai_provider.ollama_client import chat as ollama_chat  # noqa: F401
 from app.infrastructure.nlp.spacy_loader import get_nlp
 from app.schemas.ai_request import AIRequestSchema

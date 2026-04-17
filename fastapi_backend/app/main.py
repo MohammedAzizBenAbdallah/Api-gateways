@@ -15,6 +15,10 @@ from app.api.admin.intent_mappings import router as admin_intent_mappings_router
 from app.api.admin.services import router as admin_services_router
 from app.api.admin.policies import router as admin_policies_router
 from app.api.admin.metrics import router as admin_metrics_router
+from app.api.admin.security_patterns import router as admin_security_patterns_router
+from app.api.admin.gateway_plugins import router as admin_gateway_plugins_router
+from app.api.admin.quotas_admin import router as admin_quotas_router
+from app.api.admin.security_events_admin import router as admin_security_events_router
 from app.api.ai import router as ai_router
 from app.api.governance import router as governance_router
 from app.core.config import settings
@@ -110,6 +114,7 @@ async def lifespan(app: FastAPI):
 
         # Sync in-memory cache from database
         await policy_service.sync_from_db(db)
+        await prompt_security_service.reload_patterns(db)
 
     # Fail fast if required external dependencies (spaCy model) are missing.
     _ = get_nlp()
@@ -141,6 +146,7 @@ def create_app() -> FastAPI:
     app.state.intent_mappings_service = _build_intent_mappings_service()
     app.state.policy_service = policy_service
     app.state.quota_service = quota_service
+    app.state.prompt_security_service = prompt_security_service
 
     cors_origins = [o.strip() for o in settings.cors_origin.split(",") if o.strip()]
     app.add_middleware(
@@ -157,6 +163,10 @@ def create_app() -> FastAPI:
     app.include_router(admin_services_router, prefix="/api")
     app.include_router(admin_policies_router, prefix="/api")
     app.include_router(admin_metrics_router, prefix="/api")
+    app.include_router(admin_security_patterns_router, prefix="/api")
+    app.include_router(admin_gateway_plugins_router, prefix="/api")
+    app.include_router(admin_quotas_router, prefix="/api")
+    app.include_router(admin_security_events_router, prefix="/api")
     app.include_router(governance_router, prefix="/api")
 
     # Instrument for Prometheus
