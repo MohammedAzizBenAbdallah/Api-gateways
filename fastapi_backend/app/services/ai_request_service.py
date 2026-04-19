@@ -12,6 +12,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import text
+
 from app.core.exceptions import (
     ProviderError,
     ServiceNotFoundError,
