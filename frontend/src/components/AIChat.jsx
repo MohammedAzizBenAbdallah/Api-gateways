@@ -141,7 +141,7 @@ const AIChat = ({
           Accept: "text/event-stream",
         },
         body: JSON.stringify({
-          intent: selectedIntent,
+          intent: selectedIntent || "general_chat",
           payload: {
             messages: conversationHistory.map((m) => ({
               role: m.role,

@@ -29,6 +29,7 @@ const AdminPortal = ({ token, onClose }) => {
   const [securityScore, setSecurityScore] = useState(null);
   const [securityEvents, setSecurityEvents] = useState([]);
   const [quotasList, setQuotasList] = useState([]);
+  const [observabilitySubTab, setObservabilitySubTab] = useState("kong"); // kong, fastapi
 
   // Form state
   const [formData, setFormData] = useState({
@@ -538,6 +539,23 @@ const AdminPortal = ({ token, onClose }) => {
             }}
           >
             🛡️ Edge & App Security
+          </button>
+          <button
+            onClick={() => setActiveTab("observability")}
+            style={{
+              background: "none",
+              border: "none",
+              color:
+                activeTab === "observability"
+                  ? "#3b82f6"
+                  : "var(--text-dim)",
+              fontWeight: activeTab === "observability" ? "600" : "400",
+              cursor: "pointer",
+              padding: "0 0.5rem",
+              fontSize: "1rem",
+            }}
+          >
+            📈 Observability
           </button>
         </div>
 
@@ -1402,6 +1420,40 @@ const AdminPortal = ({ token, onClose }) => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── OBSERVABILITY TAB ── */}
+        {activeTab === "observability" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button onClick={() => setObservabilitySubTab("kong")} style={{
+                padding: "8px 16px", borderRadius: "10px", border: observabilitySubTab === "kong" ? "1px solid #3b82f6" : "1px solid var(--glass-border)",
+                background: observabilitySubTab === "kong" ? "rgba(59, 130, 246, 0.15)" : "var(--bg-card)",
+                color: observabilitySubTab === "kong" ? "#60a5fa" : "var(--text-dim)", cursor: "pointer", fontWeight: observabilitySubTab === "kong" ? "bold" : "normal"
+              }}>🌍 Kong Edge Metrics</button>
+              <button onClick={() => setObservabilitySubTab("fastapi")} style={{
+                padding: "8px 16px", borderRadius: "10px", border: observabilitySubTab === "fastapi" ? "1px solid #3b82f6" : "1px solid var(--glass-border)",
+                background: observabilitySubTab === "fastapi" ? "rgba(59, 130, 246, 0.15)" : "var(--bg-card)",
+                color: observabilitySubTab === "fastapi" ? "#60a5fa" : "var(--text-dim)", cursor: "pointer", fontWeight: observabilitySubTab === "fastapi" ? "bold" : "normal"
+              }}>🧠 AI Platform Metrics</button>
+              <button onClick={() => setObservabilitySubTab("nextora_bi")} style={{
+                padding: "8px 16px", borderRadius: "10px", border: observabilitySubTab === "nextora_bi" ? "1px solid #10b981" : "1px solid var(--glass-border)",
+                background: observabilitySubTab === "nextora_bi" ? "rgba(16, 185, 129, 0.15)" : "var(--bg-card)",
+                color: observabilitySubTab === "nextora_bi" ? "#34d399" : "var(--text-dim)", cursor: "pointer", fontWeight: observabilitySubTab === "nextora_bi" ? "bold" : "normal"
+              }}>💹 Business Analytics</button>
+            </div>
+            <div style={{ background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)", overflow: "hidden", height: "800px" }}>
+              {observabilitySubTab === "kong" && (
+                <iframe src="http://localhost:3001/d/mY9p7dQmz?orgId=1&kiosk=tv&theme=dark" width="100%" height="100%" frameBorder="0" style={{ display: "block" }}></iframe>
+              )}
+              {observabilitySubTab === "fastapi" && (
+                <iframe src="http://localhost:3001/d/2SEsuEZ4k?orgId=1&kiosk=tv&theme=dark" width="100%" height="100%" frameBorder="0" style={{ display: "block" }}></iframe>
+              )}
+              {observabilitySubTab === "nextora_bi" && (
+                <iframe src="http://localhost:3001/d/nextora_bi_dashboard?orgId=1&kiosk=tv&theme=dark" width="100%" height="100%" frameBorder="0" style={{ display: "block" }}></iframe>
+              )}
+            </div>
           </div>
         )}
       </div>

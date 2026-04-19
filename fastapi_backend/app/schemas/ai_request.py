@@ -43,7 +43,7 @@ class AIRequestMetadata(BaseModel):
 class AIRequestSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    intent: str
+    intent: str = "general_chat"
     payload: AIRequestPayload
     metadata: AIRequestMetadata
 
