@@ -1,7 +1,6 @@
 # app/main.py
 from __future__ import annotations
 """FastAPI application factory wiring routers and application services."""
-print("[DEBUG] Loading main.py...")
 
 import asyncio
 import logging

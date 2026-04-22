@@ -160,14 +160,25 @@ const AIChat = ({
         const errData = await response.json().catch(() => ({}));
         let errMsg = "Sorry, I'm having trouble connecting to the AI service.";
 
+        let detectedPiiTypes = null;
+        let piiCount = 0;
+
         if (response.status === 400) {
           errMsg = "Message blocked by AI Prompt Guard.";
         } else if (errData.detail) {
-          // FastAPI/Pydantic validation errors (422) return a list of objects in 'detail'
-          errMsg =
-            typeof errData.detail === "string"
-              ? errData.detail
-              : JSON.stringify(errData.detail);
+          if (typeof errData.detail === "object") {
+            // Handle structured error from the backend (403 blocks)
+            errMsg = errData.detail.message || JSON.stringify(errData.detail);
+            detectedPiiTypes = errData.detail.detected_pii_types || null;
+            piiCount = errData.detail.pii_count || 0;
+            
+            // Enhance the message if it's a policy/security block
+            if (errData.detail.description) {
+              errMsg = `Access Denied: ${errData.detail.description}`;
+            }
+          } else {
+            errMsg = errData.detail;
+          }
         }
 
         setMessages((prev) => [
@@ -180,6 +191,8 @@ const AIChat = ({
               minute: "2-digit",
             }),
             isError: true,
+            detectedPiiTypes,
+            piiCount,
           },
         ]);
         return;
@@ -283,6 +296,7 @@ const AIChat = ({
                 detectedPiiTypes: Array.isArray(data.detected_pii_types)
                   ? data.detected_pii_types
                   : null,
+                piiCount: data.pii_count || 0,
                 // Streaming latency comes from X-Request-ID header only;
                 // no per-message upstream latency available in SSE mode
                 metrics: {
@@ -616,29 +630,60 @@ const AIChat = ({
                   m.detectedPiiTypes.length > 0 && (
                     <div
                       style={{
-                        marginTop: "0.8rem",
-                        paddingTop: "0.8rem",
-                        borderTop: "1px solid rgba(248, 113, 113, 0.25)",
-                        fontSize: "0.75rem",
-                        color: "#fca5a5",
+                        marginTop: "1rem",
+                        padding: "0.75rem 1rem",
+                        background: "rgba(239, 68, 68, 0.1)",
+                        border: "1px solid rgba(239, 68, 68, 0.3)",
+                        borderRadius: "12px",
+                        fontSize: "0.8rem",
+                        color: "#f87171",
                         display: "flex",
-                        flexWrap: "wrap",
-                        gap: "0.5rem",
-                        alignItems: "center",
+                        flexDirection: "column",
+                        gap: "0.4rem",
+                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                        backdropFilter: "blur(4px)",
+                        maxWidth: "100%",
                       }}
-                      title="This is a server-side summary (types only, no raw matches)."
+                      title="Server-side PII Detection Summary"
                     >
-                      <span style={{ fontWeight: 600 }}>PII detected:</span>
-                      <span style={{ opacity: 0.9 }}>
-                        {m.detectedPiiTypes.join(", ")}
-                      </span>
-                      {m.resolvedSensitivity && (
-                        <span style={{ opacity: 0.9 }}>
-                          · resolved sensitivity:{" "}
-                          <span style={{ fontWeight: 600 }}>
-                            {m.resolvedSensitivity}
-                          </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{ 
+                          background: "#ef4444", 
+                          color: "white", 
+                          padding: "2px 8px", 
+                          borderRadius: "999px", 
+                          fontWeight: 700,
+                          fontSize: "0.7rem",
+                          letterSpacing: "0.02em",
+                          whiteSpace: "nowrap"
+                        }}>
+                          {m.piiCount || m.detectedPiiTypes.length} DETECTED
                         </span>
+                        <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>PII Scan Result</span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                        {m.detectedPiiTypes.map(type => (
+                          <span key={type} style={{
+                            background: "rgba(239, 68, 68, 0.2)",
+                            padding: "1px 6px",
+                            borderRadius: "4px",
+                            fontSize: "0.7rem",
+                            border: "1px solid rgba(239, 68, 68, 0.2)"
+                          }}>
+                            {type}
+                          </span>
+                        ))}
+                      </div>
+                      {m.resolvedSensitivity && (
+                        <div style={{ 
+                          marginTop: "0.2rem", 
+                          fontSize: "0.7rem", 
+                          opacity: 0.8,
+                          borderTop: "1px solid rgba(239, 68, 68, 0.1)",
+                          paddingTop: "0.4rem"
+                        }}>
+                          Resolved Sensitivity: <span style={{ fontWeight: 700, color: "#fca5a5" }}>{m.resolvedSensitivity}</span>
+                        </div>
                       )}
                     </div>
                   )}

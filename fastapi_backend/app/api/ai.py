@@ -89,9 +89,26 @@ async def submit_ai_request(
     except TenantNotAuthorizedError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except PolicyViolationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": str(exc),
+                "policy_id": exc.policy_id,
+                "description": exc.description,
+                "pii_count": exc.pii_count,
+                "detected_pii_types": exc.detected_pii_types,
+            },
+        ) from exc
     except SecurityViolationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": str(exc),
+                "pii_count": exc.pii_count,
+                "detected_pii_types": exc.detected_pii_types,
+                "matched_patterns": exc.matched_patterns,
+            },
+        ) from exc
     except QuotaExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ProviderError as exc:

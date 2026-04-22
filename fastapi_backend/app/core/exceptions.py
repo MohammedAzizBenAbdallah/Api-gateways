@@ -81,6 +81,8 @@ class PolicyViolationError(DomainError):
     policy_id: str
     description: str
     results: List[PolicyEvaluationResult]
+    pii_count: Optional[int] = None
+    detected_pii_types: Optional[List[str]] = None
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Policy violation: {self.policy_id} - {self.description or 'No description provided'}"
@@ -100,6 +102,8 @@ class SecurityViolationError(DomainError):
     prompt_hash: str
     matched_patterns: List[str]
     score: float
+    pii_count: Optional[int] = None
+    detected_pii_types: Optional[List[str]] = None
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Security violation: prompt blocked (score={self.score}, patterns={self.matched_patterns})"

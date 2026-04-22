@@ -66,7 +66,8 @@ class IntentCacheService:
 
         self._cache = new_cache
         self._version = latest_version
-        logger.info(
+        log_fn = logger.info if not self._initialized else logger.debug
+        log_fn(
             "[IntentCache] Loaded %d mappings (version: %s)",
             len(new_cache),
             self._version,
