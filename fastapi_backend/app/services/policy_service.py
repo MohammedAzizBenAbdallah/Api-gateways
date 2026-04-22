@@ -88,7 +88,7 @@ class PolicyService:
         Raises:
             PolicyViolationError: If a matching policy should block the request.
         """
-        logger.info("[PolicyService] Evaluating context: %s", context)
+        logger.debug("[PolicyService] Evaluating context: %s", context)
         
         from app.core.exceptions import PolicyViolationError
         
@@ -96,8 +96,8 @@ class PolicyService:
         
         for policy in self._policies:
             if self._matches(policy, context):
-                logger.info(
-                    "Context matches policy '%s' (Effect: %s)",
+                logger.debug(
+                    "Policy '%s' matched (effect=%s)",
                     policy.id,
                     policy.effect,
                 )
@@ -158,5 +158,5 @@ class PolicyService:
             if context.get("tenant") != condition.tenant:
                 return False
         
-        logger.debug("[PolicyService] Policy '%s' matched successfully", policy.id)
+        logger.debug("Policy '%s' conditions satisfied", policy.id)
         return True

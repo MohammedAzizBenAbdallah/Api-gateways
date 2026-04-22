@@ -112,7 +112,8 @@ CREATE TABLE IF NOT EXISTS security_events (
 -- Seed Initial Data
 INSERT INTO ai_services (service_id, model_name, provider_url, provider_type, description, service_type)
 VALUES 
-    ('ollama-llama3', 'llama3', 'http://host.docker.internal:11434/api/chat', 'ollama', 'Local Llama 3 Instance', 'on-prem')
+    ('ollama-llama3', 'llama3', 'http://host.docker.internal:11434/api/chat', 'ollama', 'Local Llama 3 Instance', 'on-prem'),
+    ('ollama-DeepSeekCoder', 'DeepSeek-Coder', 'http://host.docker.internal:11434/api/chat', 'ollama', 'Local DeepSeek Coder Instance', 'cloud')
 ON CONFLICT (service_id) DO NOTHING;
 
 INSERT INTO intent_routing (intent_name, service_id, taxonomy_version, created_by)
@@ -126,7 +127,8 @@ INSERT INTO tenant_service_permissions (tenant_id, service_id, allowed, granted_
 VALUES 
     ('tenant-a', 'ollama-llama3', TRUE, 'admin'),
     ('acme-corp', 'ollama-llama3', TRUE, 'admin'),
-    ('globex', 'ollama-llama3', TRUE, 'admin')
+    ('globex', 'ollama-llama3', TRUE, 'admin'),
+    ('acme-corp', 'ollama-DeepSeekCoder', TRUE, 'admin')
 ON CONFLICT DO NOTHING;
 -- 10. Enable Row-Level Security (RLS)
 -- We apply this to tables containing tenant-specific data to ensure isolation.

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import IntentMappingAlreadyExistsError, IntentMappingNotFoundError
 from app.core.middleware import verify_kong_header
-from app.core.security import require_admin
+from app.core.security import get_current_user, require_admin
 from app.infrastructure.db.session import get_db, get_db_with_user
 from app.schemas.intent_mapping import (
     IntentMappingCreateSchema,
@@ -36,10 +36,10 @@ def get_intent_mappings_service(request: Request) -> IntentMappingsService:
 )
 async def list_mappings(
     db: AsyncSession = Depends(get_db_with_user),
-    admin_user: Dict[str, Any] = Depends(require_admin),
+    current_user: Dict[str, Any] = Depends(get_current_user),  # any authenticated user may read
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> List[IntentMappingResponseSchema]:
-    _ = admin_user  # role enforced by require_admin
+    _ = current_user
     return await intent_mappings_service.list_mappings(db)
 
 
@@ -51,10 +51,10 @@ async def list_mappings(
 async def get_mapping(
     mapping_id: str,
     db: AsyncSession = Depends(get_db_with_user),
-    admin_user: Dict[str, Any] = Depends(require_admin),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     intent_mappings_service: IntentMappingsService = Depends(get_intent_mappings_service),
 ) -> IntentMappingResponseSchema:
-    _ = admin_user
+    _ = current_user
     try:
         return await intent_mappings_service.get_mapping(db, mapping_id)
     except IntentMappingNotFoundError as exc:

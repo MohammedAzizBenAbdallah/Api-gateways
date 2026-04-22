@@ -133,8 +133,8 @@ class ContentInspectorService:
 
     async def inspect_content(
         self, body: AIRequestSchema, nlp: Any
-    ) -> tuple[SensitivityLevel, List[str]]:
-        """Inspect message content and return (resolved_sensitivity, detected_pii_types).
+    ) -> tuple[SensitivityLevel, List[str], int]:
+        """Inspect message content and return (resolved_sensitivity, detected_pii_types, total_count).
 
         Notes:
         - If declared sensitivity is already HIGH, this returns (HIGH, []) and does not call nlp.
@@ -142,7 +142,7 @@ class ContentInspectorService:
         """
         declared: SensitivityLevel = SensitivityLevel(body.metadata.sensitivity)
         if declared is SensitivityLevel.HIGH:
-            return SensitivityLevel.HIGH, []
+            return SensitivityLevel.HIGH, [], 0
 
         messages = getattr(body.payload, "messages", [])
         # BEFORE: we scanned the entire conversation history, which caused "PII bleed"
@@ -151,11 +151,11 @@ class ContentInspectorService:
         # AFTER: scan only the most recent message. Prior turns are already persisted with
         # their own resolved sensitivity, and re-scanning them on every request is incorrect.
         if not messages:
-            return declared, []
+            return declared, [], 0
         last = messages[-1]
         combined_text = getattr(last, "content", "") or ""
         if not combined_text.strip():
-            return declared, []
+            return declared, [], 0
 
         detected_counts: Dict[str, int] = {}
 
@@ -219,16 +219,16 @@ class ContentInspectorService:
                 "[ContentInspector] Upgrading sensitivity %s → HIGH due to PII.",
                 declared.value,
             )
-            return SensitivityLevel.HIGH, detected_types
+            return SensitivityLevel.HIGH, detected_types, total_count
 
-        logger.info(
-            "[ContentInspector] No PII detected — sensitivity remains %s.",
+        logger.debug(
+            "[ContentInspector] No PII detected — sensitivity remains %s",
             declared.value,
         )
-        return declared, []
+        return declared, [], 0
 
     async def resolve_sensitivity(self, body: AIRequestSchema, nlp: Any) -> SensitivityLevel:
         """Return the final resolved SensitivityLevel."""
-        resolved, _types = await self.inspect_content(body, nlp)
+        resolved, _types, _count = await self.inspect_content(body, nlp)
         return resolved
 

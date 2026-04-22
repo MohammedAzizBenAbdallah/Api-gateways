@@ -19,7 +19,7 @@ if settings.database_url.startswith("postgresql://"):
 else:
     ASYNC_DATABASE_URL = settings.database_url
 
-engine = create_async_engine(ASYNC_DATABASE_URL, echo=True)
+engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def get_db() -> AsyncSession:
