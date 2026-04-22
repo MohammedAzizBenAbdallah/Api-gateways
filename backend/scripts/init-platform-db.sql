@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS security_events (
 INSERT INTO ai_services (service_id, model_name, provider_url, provider_type, description, service_type)
 VALUES 
     ('ollama-llama3', 'llama3', 'http://host.docker.internal:11434/api/chat', 'ollama', 'Local Llama 3 Instance', 'on-prem'),
-    ('ollama-DeepSeekCoder', 'DeepSeek-Coder', 'http://host.docker.internal:11434/api/chat', 'ollama', 'Local DeepSeek Coder Instance', 'cloud')
+    ('ollama-DeepSeekCoder', 'DeepSeek-Coder', 'http://host.docker.internal:11434/api/chat', 'ollama', 'Local DeepSeek Coder Instance', 'on-prem')
 ON CONFLICT (service_id) DO NOTHING;
 
 INSERT INTO intent_routing (intent_name, service_id, taxonomy_version, created_by)

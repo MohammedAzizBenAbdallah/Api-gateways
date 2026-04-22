@@ -21,6 +21,13 @@ async def append_lifecycle_event(
     stage: str,
     detail: Optional[dict[str, Any]] = None,
 ) -> None:
+    """Stage a lifecycle event row and flush it to the DB.
+
+    The caller owns the transaction: this helper never commits. Flushing
+    (rather than committing) ensures the row participates in the surrounding
+    unit of work and gets a PK, while letting the service layer / request
+    middleware decide when to commit or roll back.
+    """
     event = RequestLifecycleEvent(
         request_id=request_id,
         tenant_id=tenant_id,
@@ -28,4 +35,4 @@ async def append_lifecycle_event(
         detail=json.dumps(detail) if detail else None,
     )
     session.add(event)
-    await session.commit()
+    await session.flush()
