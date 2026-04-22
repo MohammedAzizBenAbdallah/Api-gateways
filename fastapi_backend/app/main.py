@@ -26,6 +26,7 @@ from app.core.security import get_current_user
 from app.core.logging import setup_logging
 from app.infrastructure.ai_provider.ollama_client import chat as _  # noqa: F401
 from app.infrastructure.db.session import AsyncSessionLocal
+from app.infrastructure.db.tenant_filters import register_tenant_orm_filters
 from app.infrastructure.nlp.spacy_loader import get_nlp
 from app.models.governance_policy import GovernancePolicy
 from app.schemas.policy import PolicyFileSchema, PolicySchema, PolicyConditionSchema
@@ -52,6 +53,8 @@ quota_service = QuotaService(
 )
 prompt_security_service = PromptSecurityService()
 output_guard_service = OutputGuardService()
+
+register_tenant_orm_filters()
 
 
 def _build_ai_request_service() -> AIRequestService:

@@ -100,13 +100,20 @@ async def submit_ai_request(
             },
         ) from exc
     except SecurityViolationError as exc:
+        # Do NOT leak `matched_patterns` to the client: the pattern identifiers
+        # describe our internal detection regex catalog and would help an
+        # attacker craft bypasses. Log them server-side for forensics only.
+        logger.warning(
+            "SecurityViolationError: patterns=%s pii_types=%s pii_count=%s",
+            exc.matched_patterns,
+            exc.detected_pii_types,
+            exc.pii_count,
+        )
         raise HTTPException(
             status_code=403,
             detail={
                 "message": str(exc),
                 "pii_count": exc.pii_count,
-                "detected_pii_types": exc.detected_pii_types,
-                "matched_patterns": exc.matched_patterns,
             },
         ) from exc
     except QuotaExceededError as exc:
