@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+ import { useState, useEffect } from "react";
 import axios from "axios";
 import useIntent from "../hooks/useIntent";
 
@@ -30,6 +30,7 @@ const AdminPortal = ({ token, onClose }) => {
   const [securityEvents, setSecurityEvents] = useState([]);
   const [quotasList, setQuotasList] = useState([]);
   const [observabilitySubTab, setObservabilitySubTab] = useState("kong"); // kong, fastapi
+  const [activeCategory, setActiveCategory] = useState("all"); // plugin marketplace category filter
 
   // Form state
   const [formData, setFormData] = useState({
@@ -58,6 +59,21 @@ const AdminPortal = ({ token, onClose }) => {
       fetchSecurityEvents();
       fetchQuotasList();
     }
+  }, [activeTab]);
+
+  // ── SOC Live Polling ──────────────────────────────────────────────────────
+  useEffect(() => {
+    let interval;
+    if (activeTab === "security") {
+        // Initial fetch is already handled by the effect above
+        interval = setInterval(() => {
+            fetchSecurityScore();
+            fetchSecurityEvents();
+        }, 10000); // Poll every 10s for a "Live" feel
+    }
+    return () => {
+        if (interval) clearInterval(interval);
+    };
   }, [activeTab]);
 
   const fetchPolicies = async () => {
@@ -170,7 +186,15 @@ const AdminPortal = ({ token, onClose }) => {
             continue;
           }
         }
-        if (field.type === "text" && typeof val === "string" && (field.key === "allow" || field.key === "deny" || field.key === "origins" || field.key === "methods" || field.key === "headers")) {
+        // Determine if this field is a comma-separated list that Kong expects as an array
+        const isArrayField = field.type === "array" || (
+          field.type === "text" && typeof val === "string" &&
+          ["allow", "deny", "origins", "methods", "headers",
+           "uri_param_names", "cookie_names", "claims_to_verify",
+           "key_names", "scopes", "response_code", "request_method", "content_type"
+          ].includes(field.key)
+        );
+        if (isArrayField && typeof val === "string") {
           config[field.key] = val.split(",").map(s => s.trim()).filter(Boolean);
         } else if (field.type === "number") {
           config[field.key] = Number(val);
@@ -193,7 +217,9 @@ const AdminPortal = ({ token, onClose }) => {
       fetchKongPlugins();
       fetchKongRoutes();
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to apply plugin");
+      console.error("Plugin apply error:", err.response?.status, err.response?.data);
+      const detail = err.response?.data?.detail || err.response?.data?.message || JSON.stringify(err.response?.data) || err.message || "Failed to apply plugin";
+      setError(detail);
     } finally {
       setLoading(false);
     }
@@ -1107,43 +1133,68 @@ const AdminPortal = ({ token, onClose }) => {
             {/* ── SUB-TAB: Plugin Marketplace ── */}
             {securitySubTab === "marketplace" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                <div>
-                  <h3 style={{ color: "var(--text-header)", margin: 0 }}>Plugin Marketplace</h3>
-                  <p style={{ color: "var(--text-dim)", fontSize: "0.85rem", margin: "0.3rem 0 0 0" }}>Click any plugin card to configure and apply it to your gateway — no code required.</p>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <h3 style={{ color: "var(--text-header)", margin: 0 }}>Plugin Marketplace</h3>
+                    <p style={{ color: "var(--text-dim)", fontSize: "0.85rem", margin: "0.3rem 0 0 0" }}>
+                      {pluginCatalog.length} plugins available — click any card to configure and apply it to your gateway.
+                    </p>
+                  </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
-                  {pluginCatalog.map(plugin => {
-                    const categoryColors = { traffic: "#f59e0b", security: "#ef4444", auth: "#8b5cf6" };
-                    const catColor = categoryColors[plugin.category] || "#60a5fa";
-                    return (
-                      <div key={plugin.name} onClick={() => {
-                        setSelectedPlugin(plugin);
-                        const defaults = {};
-                        plugin.fields.forEach(f => { defaults[f.key] = f.default; });
-                        setPluginFormData(defaults);
-                        setPluginScope("global");
-                        setPluginRouteId("");
-                        setShowPluginModal(true);
-                      }} style={{
-                        padding: "1.2rem", background: "var(--bg-card)", borderRadius: "16px",
-                        border: "1px solid var(--glass-border)", cursor: "pointer",
-                        transition: "all 0.2s ease", boxShadow: "var(--shadow-premium)",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = catColor; e.currentTarget.style.transform = "translateY(-2px)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--glass-border)"; e.currentTarget.style.transform = "translateY(0)"; }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
-                          <span style={{ fontWeight: 700, color: "var(--text-header)", fontSize: "1rem" }}>{plugin.label}</span>
-                          <span style={{ fontSize: "0.65rem", padding: "2px 8px", borderRadius: "10px", background: `${catColor}20`, color: catColor, border: `1px solid ${catColor}40`, textTransform: "uppercase", fontWeight: 600 }}>{plugin.category}</span>
-                        </div>
-                        <p style={{ fontSize: "0.82rem", color: "var(--text-dim)", lineHeight: 1.5, margin: 0 }}>{plugin.description}</p>
-                        <div style={{ marginTop: "0.8rem", display: "flex", justifyContent: "flex-end" }}>
-                          <span style={{ fontSize: "0.75rem", color: "var(--accent-primary)", fontWeight: 600 }}>Click to apply →</span>
-                        </div>
+                {/* Category filter pills */}
+                {(() => {
+                  const categories = ["all", ...new Set(pluginCatalog.map(p => p.category))];
+                  const categoryColors = { traffic: "#f59e0b", security: "#ef4444", auth: "#8b5cf6", ai: "#06b6d4", logging: "#10b981", transformation: "#6366f1" };
+                  const filtered = activeCategory === "all" ? pluginCatalog : pluginCatalog.filter(p => p.category === activeCategory);
+                  return (
+                    <>
+                      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                        {categories.map(cat => (
+                          <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+                            padding: "5px 14px", borderRadius: "20px", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
+                            textTransform: "capitalize", border: "1px solid",
+                            borderColor: activeCategory === cat ? (categoryColors[cat] || "var(--accent-primary)") : "var(--glass-border)",
+                            background: activeCategory === cat ? `${(categoryColors[cat] || "#6366f1")}20` : "transparent",
+                            color: activeCategory === cat ? (categoryColors[cat] || "var(--accent-primary)") : "var(--text-dim)",
+                          }}>{cat === "all" ? `🔌 All (${pluginCatalog.length})` : `${cat}`}</button>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
+                        {filtered.map(plugin => {
+                          const catColor = categoryColors[plugin.category] || "#60a5fa";
+                          return (
+                            <div key={plugin.name} onClick={() => {
+                              setSelectedPlugin(plugin);
+                              const defaults = {};
+                              plugin.fields.forEach(f => { defaults[f.key] = f.default; });
+                              setPluginFormData(defaults);
+                              setPluginScope("global");
+                              setPluginRouteId("");
+                              setError(null);
+                              setShowPluginModal(true);
+                            }} style={{
+                              padding: "1.2rem", background: "var(--bg-card)", borderRadius: "16px",
+                              border: "1px solid var(--glass-border)", cursor: "pointer",
+                              transition: "all 0.2s ease", boxShadow: "var(--shadow-premium)",
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = catColor; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--glass-border)"; e.currentTarget.style.transform = "translateY(0)"; }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                                <span style={{ fontWeight: 700, color: "var(--text-header)", fontSize: "1rem" }}>{plugin.label}</span>
+                                <span style={{ fontSize: "0.65rem", padding: "2px 8px", borderRadius: "10px", background: `${catColor}20`, color: catColor, border: `1px solid ${catColor}40`, textTransform: "uppercase", fontWeight: 600 }}>{plugin.category}</span>
+                              </div>
+                              <p style={{ fontSize: "0.82rem", color: "var(--text-dim)", lineHeight: 1.5, margin: 0 }}>{plugin.description}</p>
+                              <div style={{ marginTop: "0.8rem", display: "flex", justifyContent: "flex-end" }}>
+                                <span style={{ fontSize: "0.75rem", color: "var(--accent-primary)", fontWeight: 600 }}>Click to apply →</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
@@ -1407,6 +1458,13 @@ const AdminPortal = ({ token, onClose }) => {
                       )}
                     </div>
                   ))}
+
+                  {/* Error alert inside modal */}
+                  {error && (
+                    <div style={{ padding: "0.8rem", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "10px", marginBottom: "1rem", fontSize: "0.82rem", color: "#fca5a5", wordBreak: "break-word" }}>
+                      ⚠️ {error}
+                    </div>
+                  )}
 
                   {/* Actions */}
                   <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
