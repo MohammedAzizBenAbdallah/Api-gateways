@@ -22,3 +22,13 @@ datasources:
       sslmode: 'disable'
       postgresVersion: 15
       timescaleDB: false
+
+  - name: Alertmanager
+    type: alertmanager
+    uid: "alertmanager_ds_id"
+    access: proxy
+    url: http://alertmanager:9093
+    isDefault: false
+    editable: false
+    jsonData:
+      implementation: prometheus

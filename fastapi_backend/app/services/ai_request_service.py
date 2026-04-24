@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.parse
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, AsyncIterator, Dict, List, Optional, TYPE_CHECKING
 
+import httpx
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,6 +88,111 @@ class AIRequestService:
         self._session_factory = session_factory
 
     # ── Private helpers ──────────────────────────────────────────────────────
+
+    def _gemini_headers(self) -> Dict[str, str]:
+        """Build Gemini request headers copied from the exploit logic."""
+        return {
+            "accept": "*/*",
+            "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "x-same-domain": "1",
+            "cookie": "",
+        }
+
+    def _build_gemini_payload(self, messages: List[Dict[str, str]]) -> str:
+        """Create the same f.req form payload shape used in pythonExploit.py."""
+        prompt = "\n".join(
+            m.get("content", "").strip()
+            for m in messages
+            if isinstance(m, dict) and m.get("content")
+        ).strip()
+        inner = [
+            [prompt, 0, None, None, None, None, 0],
+            ["en-US"],
+            ["", "", "", None, None, None, None, None, None, ""],
+            "", "", None, [0], 1, None, None, 1, 0,
+            None, None, None, None, None, [[0]], 0,
+        ]
+        outer = [None, json.dumps(inner)]
+        return urllib.parse.urlencode({"f.req": json.dumps(outer)}) + "&"
+
+    def _parse_gemini_response(self, text: str) -> str:
+        """Extract response text from wrb.fr lines."""
+        cleaned = text.replace(")]}'", "")
+        best = ""
+        for line in cleaned.splitlines():
+            if "wrb.fr" not in line:
+                continue
+            try:
+                data = json.loads(line)
+            except Exception:
+                continue
+
+            entries: List[List[Any]] = []
+            if isinstance(data, list):
+                if data and data[0] == "wrb.fr":
+                    entries = [data]
+                else:
+                    entries = [
+                        item for item in data
+                        if isinstance(item, list) and item and item[0] == "wrb.fr"
+                    ]
+
+            for entry in entries:
+                try:
+                    inner = json.loads(entry[2])
+                    if isinstance(inner, list) and len(inner) > 4 and isinstance(inner[4], list):
+                        for chunk in inner[4]:
+                            if isinstance(chunk, list) and len(chunk) > 1 and isinstance(chunk[1], list):
+                                txt = "".join(token for token in chunk[1] if isinstance(token, str))
+                                if len(txt) > len(best):
+                                    best = txt
+                except Exception:
+                    continue
+        return best.strip()
+
+    async def _call_gemini_json(
+        self,
+        *,
+        provider_url: str,
+        messages: List[Dict[str, str]],
+    ) -> Dict[str, Any]:
+        """Call Gemini endpoint and normalize output into provider_data shape."""
+        payload = self._build_gemini_payload(messages)
+        headers = self._gemini_headers()
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(provider_url, headers=headers, content=payload)
+        if response.status_code != 200:
+            raise ProviderError(f"Gemini provider returned HTTP {response.status_code}")
+
+        text = self._parse_gemini_response(response.text)
+        if not text:
+            raise ProviderError("Gemini provider returned empty/unsupported response format")
+
+        return {
+            "message": {"role": "assistant", "content": text},
+            "usage": {},
+        }
+
+    async def _call_gemini_stream(
+        self,
+        *,
+        provider_url: str,
+        messages: List[Dict[str, str]],
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Provide a token-like stream contract from Gemini full response."""
+        provider_data = await self._call_gemini_json(
+            provider_url=provider_url,
+            messages=messages,
+        )
+        text = provider_data.get("message", {}).get("content", "")
+        if not text:
+            yield {"token": "", "done": True, "usage": {}}
+            return
+
+        chunk_size = 48
+        for i in range(0, len(text), chunk_size):
+            yield {"token": text[i:i + chunk_size], "done": False}
+        yield {"token": "", "done": True, "usage": provider_data.get("usage", {})}
 
     async def _update_status_in_new_session(
         self,
@@ -348,12 +455,18 @@ class AIRequestService:
             
             first_token = True
             try:
-                stream_iter = await ollama_chat(
-                    provider_url=outbound_provider_url,
-                    model=outbound_model,
-                    messages=messages,
-                    stream=True,
-                )
+                if pf.service.provider_type == "gemini":
+                    stream_iter = self._call_gemini_stream(
+                        provider_url=outbound_provider_url,
+                        messages=messages,
+                    )
+                else:
+                    stream_iter = await ollama_chat(
+                        provider_url=outbound_provider_url,
+                        model=outbound_model,
+                        messages=messages,
+                        stream=True,
+                    )
                 if stream_iter is None:
                     raise ProviderError("Provider stream returned no iterator")
 
@@ -446,15 +559,6 @@ class AIRequestService:
                             completed_at=datetime.utcnow(),
                         )
                         return
-
-                    if token:
-                        if first_token:
-                            first_token = False
-                            await self._update_status_in_new_session(
-                                request_id=request_id,
-                                status="streaming",
-                            )
-                        yield "data: " + json.dumps({"token": token, "done": False}) + "\n\n"
             except Exception as exc:
                 logger.exception("SSE stream error: %s", exc)
                 yield (
@@ -489,12 +593,18 @@ class AIRequestService:
 
         try:
             start = datetime.utcnow()
-            provider_data = await ollama_chat(
-                provider_url=outbound_provider_url,
-                model=outbound_model if pf.service.provider_type == "ollama" else None,
-                messages=pf.messages,
-                stream=False,
-            )
+            if pf.service.provider_type == "gemini":
+                provider_data = await self._call_gemini_json(
+                    provider_url=outbound_provider_url,
+                    messages=pf.messages,
+                )
+            else:
+                provider_data = await ollama_chat(
+                    provider_url=outbound_provider_url,
+                    model=outbound_model if pf.service.provider_type == "ollama" else None,
+                    messages=pf.messages,
+                    stream=False,
+                )
             elapsed_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
         except Exception as exc:
             logger.exception("Provider call failed: %s", exc)
