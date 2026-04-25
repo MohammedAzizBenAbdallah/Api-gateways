@@ -1,40 +1,44 @@
 {
-  "policies": [
-    {
-      "id": "high-sensitivity-onprem",
-      "description": "High sensitivity data must stay on-prem for finance tenant",
-      "effect": "allow_onprem_only",
-      "condition": {
-        "sensitivity": "HIGH",
-        "tenant": "finance"
+  "policies": {
+    "version": "1.0.0",
+    "hash": "bootstrap",
+    "items": [
+      {
+        "id": "high-sensitivity-onprem",
+        "description": "High sensitivity data must stay on-prem for finance tenant",
+        "effect": "allow_onprem_only",
+        "condition": {
+          "sensitivity": "HIGH",
+          "tenant": "finance"
+        }
+      },
+      {
+        "id": "deny-cloud-restricted",
+        "description": "Deny cloud for restricted segments",
+        "effect": "deny_cloud",
+        "condition": {
+          "sensitivity": null,
+          "tenant": "restricted-segment"
+        }
+      },
+      {
+        "id": "medium-sensitivity-default",
+        "description": "Medium sensitivity allows cloud but warns (placeholder)",
+        "effect": "allow_all",
+        "condition": {
+          "sensitivity": "MEDIUM",
+          "tenant": null
+        }
+      },
+      {
+        "id": "block-all-cloud-high",
+        "description": "Cloud services are forbidden for high sensitivity data across all tenants",
+        "effect": "deny_cloud",
+        "condition": {
+          "sensitivity": "HIGH",
+          "tenant": null
+        }
       }
-    },
-    {
-      "id": "deny-cloud-restricted",
-      "description": "Deny cloud for restricted segments",
-      "effect": "deny_cloud",
-      "condition": {
-        "sensitivity": null,
-        "tenant": "restricted-segment"
-      }
-    },
-    {
-      "id": "medium-sensitivity-default",
-      "description": "Medium sensitivity allows cloud but warns (placeholder)",
-      "effect": "allow_all",
-      "condition": {
-        "sensitivity": "MEDIUM",
-        "tenant": null
-      }
-    },
-    {
-      "id": "block-all-cloud-high",
-      "description": "Cloud services are forbidden for high sensitivity data across all tenants",
-      "effect": "deny_cloud",
-      "condition": {
-        "sensitivity": "HIGH",
-        "tenant": null
-      }
-    }
-  ]
+    ]
+  }
 }

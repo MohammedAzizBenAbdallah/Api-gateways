@@ -89,6 +89,27 @@ class PolicyViolationError(DomainError):
 
 
 @dataclass(frozen=True)
+class PolicySyncError(DomainError):
+    """Raised when the local policy cache cannot be pushed to OPA in strict mode."""
+    reason: str
+    detail: Optional[str] = None
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Policy sync to OPA failed: {self.reason}"
+
+
+@dataclass(frozen=True)
+class PolicyEvaluationError(DomainError):
+    """Raised when OPA evaluation fails and local fallback is disabled,
+    or when a hash/version mismatch is detected in fail-closed mode."""
+    reason: str
+    detail: Optional[str] = None
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Policy evaluation failed: {self.reason}"
+
+
+@dataclass(frozen=True)
 class QuotaExceededError(DomainError):
     tenant_id: str
 

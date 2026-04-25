@@ -60,14 +60,30 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
+      # Expose the management interface on :9000 so we can probe /health/ready
+      # without needing curl/wget inside the (UBI-based) Keycloak image.
+      KC_HEALTH_ENABLED: "true"
     ports:
       - "8080:8080"
     depends_on:
-      - keycloak-db
+      keycloak-db:
+        condition: service_healthy
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
     command: start-dev --import-realm
-
+    healthcheck:
+      # Keycloak ships neither curl nor wget; use bash's /dev/tcp shim to
+      # query /health/ready on the management port (9000). This endpoint
+      # only returns 200 once Keycloak has finished booting AND completed
+      # the realm import, which is exactly what dependents need to wait on.
+      test:
+        - "CMD-SHELL"
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | head -n 1 | grep -q '200'"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # Realm import + JVM warm-up easily takes 30-60s on a cold start.
+      start_period: 60s
   # --- Kong Database ---
   kong-db:
     image: postgres:13
