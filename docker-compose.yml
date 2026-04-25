@@ -60,14 +60,30 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
+      # Expose the management interface on :9000 so we can probe /health/ready
+      # without needing curl/wget inside the (UBI-based) Keycloak image.
+      KC_HEALTH_ENABLED: "true"
     ports:
       - "8080:8080"
     depends_on:
-      - keycloak-db
+      keycloak-db:
+        condition: service_healthy
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
     command: start-dev --import-realm
-
+    healthcheck:
+      # Keycloak ships neither curl nor wget; use bash's /dev/tcp shim to
+      # query /health/ready on the management port (9000). This endpoint
+      # only returns 200 once Keycloak has finished booting AND completed
+      # the realm import, which is exactly what dependents need to wait on.
+      test:
+        - "CMD-SHELL"
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | head -n 1 | grep -q '200'"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # Realm import + JVM warm-up easily takes 30-60s on a cold start.
+      start_period: 60s
   # --- Kong Database ---
   kong-db:
     image: postgres:13
@@ -168,6 +184,11 @@ services:
       CORS_ORIGIN: http://localhost:5173,http://localhost:3000,http://localhost:8000,http://localhost:8081,http://197.14.4.163:8000,http://197.14.4.163:5173
       REDIS_URL: redis://redis:6379/0
       QUOTAS_FILE_PATH: quotas.yaml
+      OPA_ENABLED: "true"
+      OPA_URL: http://opa:8181
+      OPA_POLICY_PATH: /v1/data/orchestrator
+      OPA_DATA_PATH: /v1/data/policies
+      OPA_TIMEOUT_SECONDS: "2.0"
     ports:
       - "3000:3000"
     volumes:
@@ -180,6 +201,26 @@ services:
         condition: service_started
       platform-db:
         condition: service_healthy
+      opa:
+        condition: service_started
+
+  # --- Policy Decision Point (Open Policy Agent) ---
+  opa:
+    image: openpolicyagent/opa:0.65.0
+    container_name: opa
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8181"
+      - "--log-level=info"
+      - "/policies"
+      - "/data/policies.json"
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./opa/policies:/policies:ro
+      - ./opa/data:/data:ro
+    restart: on-failure
 
   # --- Frontend Application ---
   frontend:
@@ -198,7 +239,10 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      - kong
+      kong:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
 
   # --- Helper Services ---
   hello_world:
@@ -230,7 +274,15 @@ services:
       POSTGRES_DB: platform_permissions
       POSTGRES_PASSWORD: platform_pass
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "platform_admin", "-d", "platform_permissions"]
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "platform_admin",
+          "-d",
+          "platform_permissions",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -258,6 +310,7 @@ services:
     container_name: prometheus
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules
     ports:
       - "9090:9090"
     networks:
@@ -266,6 +319,21 @@ services:
           - prometheus
     depends_on:
       - backend
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    container_name: alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    networks:
+      default:
+        aliases:
+          - alertmanager
 
   grafana:
     image: grafana/grafana:10.4.1
@@ -280,6 +348,7 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     depends_on:
       - prometheus
+      - alertmanager
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards

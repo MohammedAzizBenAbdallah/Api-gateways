@@ -6,6 +6,7 @@ const AdminPortal = ({ token, onClose }) => {
   const [activeTab, setActiveTab] = useState("dashboard"); // "dashboard", "mappings", "services", "policies"
   const [services, setServices] = useState([]);
   const [policies, setPolicies] = useState([]);
+  const [policySyncStatus, setPolicySyncStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [quotaStatus, setQuotaStatus] = useState(null);
@@ -79,10 +80,15 @@ const AdminPortal = ({ token, onClose }) => {
   const fetchPolicies = async () => {
     setLoading(true);
     try {
-      const resp = await axios.get("/api/admin/policies", {
-        headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
-      });
-      setPolicies(resp.data);
+      const headers = { Authorization: `Bearer ${token}`, "kong-header": "true" };
+      const [policiesResp, statusResp] = await Promise.all([
+        axios.get("/api/admin/policies", { headers }),
+        axios
+          .get("/api/admin/policies/status", { headers })
+          .catch(() => ({ data: null })),
+      ]);
+      setPolicies(policiesResp.data);
+      setPolicySyncStatus(statusResp.data);
     } catch (err) {
       setError("Failed to fetch policies");
     } finally {
@@ -386,16 +392,35 @@ const AdminPortal = ({ token, onClose }) => {
 
   const handleReloadPolicies = async () => {
     try {
-      await axios.post(
+      const resp = await axios.post(
         "/api/admin/policies/reload",
         {},
         {
           headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
         },
       );
-      alert("Policies reloaded successfully!");
+      const stats = resp?.data?.stats;
+      if (stats) {
+        alert(
+          `Policies reloaded. active=${stats.active_synced} ` +
+            `version=${stats.version} opa=${stats.opa} ` +
+            `hash=${(stats.hash || "").slice(0, 12)}`,
+        );
+      } else {
+        alert("Policies reloaded successfully!");
+      }
+      fetchPolicies();
     } catch (err) {
-      setError("Reload failed");
+      const detail = err?.response?.data?.detail;
+      if (detail && typeof detail === "object" && detail.error === "policy_sync_failed") {
+        setError(
+          `OPA sync failed: ${detail.reason}` +
+            (detail.detail ? ` - ${detail.detail}` : ""),
+        );
+        if (detail.status) setPolicySyncStatus(detail.status);
+      } else {
+        setError("Reload failed");
+      }
     }
   };
 
@@ -995,6 +1020,52 @@ const AdminPortal = ({ token, onClose }) => {
           </div>
         ) : activeTab === "policies" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+            {policySyncStatus && (() => {
+              const s = policySyncStatus;
+              const opaOff = !s.opa_enabled;
+              const inSync = s.in_sync === true;
+              const hasError = s.last_sync_ok === false;
+              const tone = opaOff
+                ? { fg: "#fbbf24", bg: "rgba(251,191,36,0.08)", bd: "rgba(251,191,36,0.3)" }
+                : hasError
+                  ? { fg: "#fca5a5", bg: "rgba(239,68,68,0.08)", bd: "rgba(239,68,68,0.3)" }
+                  : inSync
+                    ? { fg: "#34d399", bg: "rgba(16,185,129,0.08)", bd: "rgba(16,185,129,0.3)" }
+                    : { fg: "#fbbf24", bg: "rgba(251,191,36,0.08)", bd: "rgba(251,191,36,0.3)" };
+              const label = opaOff
+                ? "OPA disabled — policies evaluated locally"
+                : hasError
+                  ? "OPA out of sync"
+                  : inSync
+                    ? "OPA in sync"
+                    : "OPA pending sync";
+              const fmtTs = (iso) => {
+                if (!iso) return "—";
+                try { return new Date(iso).toLocaleString(); } catch { return iso; }
+              };
+              return (
+                <div style={{ padding: "0.9rem 1.1rem", background: tone.bg, border: `1px solid ${tone.bd}`, borderRadius: "12px", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 600, color: tone.fg }}>{label}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>policies={s.policy_count}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>version={s.version || "—"}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>strict={String(s.opa_strict_sync)}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>fallback={String(s.opa_allow_local_fallback)}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>fail_closed={String(s.opa_fail_closed)}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.7rem", color: "var(--text-dim)" }}>
+                    <span>local_hash: <code style={{ color: "var(--text-header)" }}>{(s.local_hash || "—").slice(0, 12)}</code></span>
+                    <span>opa_hash: <code style={{ color: "var(--text-header)" }}>{(s.last_pushed_hash || "—").slice(0, 12)}</code></span>
+                    <span>last_sync: {fmtTs(s.last_sync_at)}</span>
+                  </div>
+                  {s.last_sync_error && (
+                    <div style={{ fontSize: "0.75rem", color: "#fca5a5", marginTop: "0.2rem" }}>
+                      error: {s.last_sync_error}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {policies.map((p) => (
               <div key={p.id} style={{ padding: "1.2rem", background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1 }}>

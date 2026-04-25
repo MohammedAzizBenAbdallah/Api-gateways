@@ -1,0 +1,32 @@
+groups:
+  - name: api-gateway-health
+    rules:
+      - alert: FastApiTargetDown
+        expr: up{job="fastapi_backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: fastapi_backend
+        annotations:
+          summary: "FastAPI metrics target is down"
+          description: "Prometheus cannot scrape backend:3000/metrics for more than 2 minutes."
+
+      - alert: KongTargetDown
+        expr: up{job="kong"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: kong
+        annotations:
+          summary: "Kong metrics target is down"
+          description: "Prometheus cannot scrape kong:8001/metrics for more than 2 minutes."
+
+      - alert: ElevatedFastApi5xxRate
+        expr: sum(rate(http_requests_total{job="fastapi_backend",status=~"5.."}[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          service: fastapi_backend
+        annotations:
+          summary: "FastAPI 5xx error rate is elevated"
+          description: "5xx rate is above 0.2 req/s for 5 minutes."
