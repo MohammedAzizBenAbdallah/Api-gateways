@@ -1,7 +1,13 @@
 package orchestrator
 
-# input.policies: [{id, effect, condition: {sensitivity?, tenant?}}, ...]
-# input.context: {sensitivity, tenant, service_type}
+# Canonical policy set lives at data.policies (pushed by FastAPI on startup
+# and on every admin policy mutation). Tests may also pass policies inline
+# via input.policies for stateless evaluation.
+#
+# Expected shapes
+# data.policies:  [{id, effect, condition: {sensitivity?, tenant?}}, ...]
+# input.policies: same shape (optional override / test path)
+# input.context:  {sensitivity, tenant, service_type}
 
 default allow = true
 
@@ -9,8 +15,14 @@ allow = false {
 	count(block) > 0
 }
 
+policies := input.policies {
+	input.policies != null
+} else := data.policies {
+	data.policies != null
+} else := []
+
 block[pol.id] {
-	pol := input.policies[_]
+	pol := policies[_]
 	policy_matches(pol, input.context)
 	should_block(pol, input.context)
 }

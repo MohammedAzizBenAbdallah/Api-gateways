@@ -301,7 +301,9 @@ class AIRequestService:
         }
         evaluation_results = []
         try:
-            evaluation_results = self._policy_service.evaluate(policy_context)
+            evaluation_results = await self._policy_service.evaluate_async(
+                policy_context
+            )
         except PolicyViolationError as exc:
             for res in exc.results:
                 await create_policy_audit_log(

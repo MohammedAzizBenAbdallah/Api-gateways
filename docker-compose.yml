@@ -168,6 +168,11 @@ services:
       CORS_ORIGIN: http://localhost:5173,http://localhost:3000,http://localhost:8000,http://localhost:8081,http://197.14.4.163:8000,http://197.14.4.163:5173
       REDIS_URL: redis://redis:6379/0
       QUOTAS_FILE_PATH: quotas.yaml
+      OPA_ENABLED: "true"
+      OPA_URL: http://opa:8181
+      OPA_POLICY_PATH: /v1/data/orchestrator
+      OPA_DATA_PATH: /v1/data/policies
+      OPA_TIMEOUT_SECONDS: "2.0"
     ports:
       - "3000:3000"
     volumes:
@@ -180,6 +185,26 @@ services:
         condition: service_started
       platform-db:
         condition: service_healthy
+      opa:
+        condition: service_started
+
+  # --- Policy Decision Point (Open Policy Agent) ---
+  opa:
+    image: openpolicyagent/opa:0.65.0
+    container_name: opa
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8181"
+      - "--log-level=info"
+      - "/policies"
+      - "/data/policies.json"
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./opa/policies:/policies:ro
+      - ./opa/data:/data:ro
+    restart: on-failure
 
   # --- Frontend Application ---
   frontend:
@@ -198,7 +223,10 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      - kong
+      kong:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
 
   # --- Helper Services ---
   hello_world:
@@ -230,7 +258,15 @@ services:
       POSTGRES_DB: platform_permissions
       POSTGRES_PASSWORD: platform_pass
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "platform_admin", "-d", "platform_permissions"]
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "platform_admin",
+          "-d",
+          "platform_permissions",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -273,7 +309,7 @@ services:
     image: prom/alertmanager:v0.28.0
     container_name: alertmanager
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
     ports:
