@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import useAuth from "../hooks/useAuth";
 import useIntent from "../hooks/useIntent";
+import useMessageGuard from "../hooks/useMessageGuard";
 import mapIntents from "../../services/mapIntents";
 import QuotaStatus from "./QuotaStatus";
+import MessageGuardModal from "./MessageGuardModal";
 
 // ── Blinking cursor keyframe injected once at module level ────────────────
 const CURSOR_STYLE = `
@@ -63,6 +65,11 @@ const AIChat = ({
   const textareaRef = useRef(null);
   const abortControllerRef = useRef(null);
 
+  // ── Client-side message guard ──────────────────────────────────────────────
+  const { guardCheck, registerSend } = useMessageGuard();
+  const [guardResult, setGuardResult] = useState(null);
+  const [pendingMessage, setPendingMessage] = useState(null);
+
   // ── Intent definitions ────────────────────────────────────────────────────
   const { intents } = useIntent();
   const INTENTS = mapIntents(intents);
@@ -103,10 +110,43 @@ const AIChat = ({
     if (documents?.length > 0) setShowDocs(true);
   }, [documents]);
 
+  // ── Guard handlers ─────────────────────────────────────────────────────────
+  const handleGuardConfirm = useCallback(() => {
+    setGuardResult(null);
+    if (pendingMessage) {
+      registerSend();
+      _doSend(pendingMessage);
+      setPendingMessage(null);
+    }
+  }, [pendingMessage]);
+
+  const handleGuardCancel = useCallback(() => {
+    setGuardResult(null);
+    setPendingMessage(null);
+  }, []);
+
   // ── Send handler (SSE streaming via native fetch) ─────────────────────────
   const handleSend = async (e) => {
     if (e) e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    // ── Client-side pre-flight guard ─────────────────────────────
+    const result = guardCheck(input);
+    if (result.blocked) {
+      setGuardResult(result);
+      return; // hard block — do not send
+    }
+    if (result.warn) {
+      setPendingMessage(input.trim());
+      setGuardResult(result);
+      return; // soft warn — wait for user confirmation
+    }
+    registerSend();
+    _doSend(input.trim());
+  };
+
+  const _doSend = async (messageText) => {
+    if (!messageText || isLoading) return;
 
     const MAX_HISTORY = 6;
     // Sliding window — prevents context overflow and avoids
@@ -114,7 +154,7 @@ const AIChat = ({
 
     const userMessage = {
       role: "user",
-      content: input.trim(),
+      content: messageText,
       timestamp: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -374,7 +414,7 @@ const AIChat = ({
   const selectedIntentLabel =
     INTENTS.find((i) => i.value === selectedIntent)?.label ?? selectedIntent;
 
-  return (
+  return (<>
     <div className="chat-window">
       {/* Inject blinking cursor styles once */}
       <style>{CURSOR_STYLE}</style>
@@ -818,7 +858,14 @@ const AIChat = ({
         </div>
       </div>
     </div>
-  );
+
+    {/* ── Client-side Security Guard Modal ──────────────────────────── */}
+    <MessageGuardModal
+      guardResult={guardResult}
+      onConfirm={handleGuardConfirm}
+      onCancel={handleGuardCancel}
+    />
+  </>);
 };
 
 export default AIChat;
