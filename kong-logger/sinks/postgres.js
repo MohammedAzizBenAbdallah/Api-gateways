@@ -3,13 +3,21 @@
 // Inserts one row per access log into the `api_usage_records` table on
 // platform-db. Schema lives in backend/scripts/init-platform-db-usage.sql.
 //
-// Failures are logged but never thrown back to the caller: a Postgres
-// outage must not block the Kong proxy queue (Kong waits for the http-log
-// receiver to return 200).
+// Reliability model:
+//   - Writes are pushed into a BoundedQueue (concurrency matches pg.Pool max,
+//     so we never overdrive the pool).
+//   - Buffer cap protects us from OOM during a Postgres outage; on overflow
+//     records are dropped and the counter is exposed via stats() for /health.
+//   - Worker errors are logged inside _insert; the queue treats the worker
+//     as best-effort and never deadlocks.
 
 "use strict";
 
 const { Pool } = require("pg");
+const { BoundedQueue } = require("../util/bounded_queue");
+
+const POOL_MAX = 5;
+const QUEUE_MAX = 5000;
 
 const INSERT_SQL = `
   INSERT INTO api_usage_records (
@@ -47,22 +55,33 @@ class PostgresSink {
       console.warn(
         "[pg-sink] PLATFORM_DB_URL not set; postgres sink disabled.",
       );
+      this.queue = null;
       return;
     }
     this.pool = new Pool({
       connectionString,
-      max: 5,
+      max: POOL_MAX,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
     });
     this.pool.on("error", (err) => {
       console.error("[pg-sink] idle client error:", err.message);
     });
+
+    this.queue = new BoundedQueue({
+      name: "pg-sink",
+      concurrency: POOL_MAX,
+      maxSize: QUEUE_MAX,
+      worker: (record) => this._insert(record),
+    });
   }
 
-  async write(record) {
+  write(record) {
     if (!this.enabled) return;
+    this.queue.push(record);
+  }
 
+  async _insert(record) {
     const requestTime = record.requestTimeEpoch
       ? new Date(record.requestTimeEpoch)
       : new Date();
@@ -99,7 +118,17 @@ class PostgresSink {
     }
   }
 
+  stats() {
+    if (!this.enabled || !this.queue) {
+      return { enabled: false, depth: 0, inFlight: 0, droppedTotal: 0 };
+    }
+    return { enabled: true, ...this.queue.stats() };
+  }
+
   async close() {
+    if (this.queue) {
+      await this.queue.drainAndWait(5000);
+    }
     if (this.pool) {
       await this.pool.end();
     }
