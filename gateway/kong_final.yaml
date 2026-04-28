@@ -53,6 +53,18 @@ plugins:
         - |
           if not _G.kong then return end
           if ngx.var.scheme == 'http' then ngx.redirect('https://' .. ngx.var.host .. ':8443' .. ngx.var.request_uri, 301) end
+
+  # Stamp every request with a stable X-Request-ID. The same value is echoed
+  # downstream and surfaces in the http-log payload, giving each access log
+  # record an AWS-style requestId that ties together access logs, upstream
+  # service logs, and billing records.
+  - name: correlation-id
+    enabled: true
+    config:
+      header_name: X-Request-ID
+      generator: uuid
+      echo_downstream: true
+
   - name: http-log
     enabled: true
     config:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -27,7 +28,7 @@ router = APIRouter(
     dependencies=[Depends(verify_kong_header), Depends(get_current_user)],
 )
 
-KONG_ADMIN_URL = "http://kong-gateway:8001"
+KONG_ADMIN_URL = os.getenv("KONG_ADMIN_URL", "http://kong-cp:8001")
 
 
 @router.get("/events")

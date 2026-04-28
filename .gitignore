@@ -35,6 +35,7 @@ platform_db_data/
 *.log
 waf/logs/
 kong-logger/kong-logs.json
+kong-logger/logs/
 
 # IDE
 .vscode/

@@ -8,15 +8,44 @@ The platform consists of several interconnected services working together to pro
 
 | Service | Port | Description |
 | :--- | :--- | :--- |
-| **Kong Gateway** | 8000, 8443, 8001, 8002 | API Gateway handling routing, JWT validation, and rate limiting. |
-| **ModSecurity WAF** | 8081 | Web Application Firewall providing an extra layer of protection. |
+| **Kong Data Plane** (`kong-dp`) | 8000, 8443, 8100 | Public-facing proxy. Serves all traffic; status/metrics on 8100. |
+| **Kong Control Plane** (`kong-cp`) | _internal only_ (8001/8002/8005/8006) | DB-backed admin / Admin GUI / cluster endpoints. **Not bound to a host port** for security. Reachable only from inside the docker network (e.g. via `deck` or the FastAPI admin pod). |
+| **ModSecurity WAF** | 8081 | Web Application Firewall in front of `kong-dp`. |
 | **Keycloak** | 8080 | Identity and Access Management (IAM) for authentication and RBAC. |
 | **FastAPI Backend** | 3000 | Core business logic and AI orchestration service. |
 | **React Frontend** | 5173 | Modern Vite-based UI for interacting with the platform. |
 | **Ollama (host)** | 11434 | Local LLM runner (running on the host machine). |
 | **Hello World** | 8003 | Node.js test service for validation. |
-| **Kong Logger** | 9999 | Node.js Express server for structured audit logging. |
-| **Platform DB** | 5433 | PostgreSQL database for permissions and orchestration data. |
+| **Kong Logger** | 9999 | Node.js receiver that turns Kong `http-log` payloads into AWS API Gateway-style access logs and persists them to JSONL + Postgres. |
+| **Platform DB** | 5433 | PostgreSQL database for permissions, orchestration, and `api_usage_records` (billing). |
+
+### Kong hybrid topology
+
+Kong runs in **hybrid mode**: a private control plane (`kong-cp`) owns the database, Admin API, and Admin GUI; one or more data planes (`kong-dp`) pull config from it over an mTLS cluster channel and serve all proxy traffic. The cluster certificate is generated once on first startup by the `kong-cluster-cert-gen` one-shot service into a named volume (`kong_cluster_certs`) and shared between CP and DP.
+
+```text
+                 +-------------------+        mTLS 8005/8006
+ internet --->   |  kong-dp (public) |  <----------------------  kong-cp (private)
+                 |  8000/8443/8100   |                            8001/8002 (no host port)
+                 +-------------------+                                  |
+                          |                                           kong-db
+                       upstreams
+```
+
+To reach the Admin API for ad-hoc operations, exec into a container on the same docker network, e.g.:
+
+```bash
+docker compose exec deck curl -s http://kong-cp:8001/status
+```
+
+### AWS API Gateway-style access logs
+
+Every request handled by `kong-dp` is logged as a single JSON record shaped like an AWS API Gateway access log (fields: `requestId`, `apiId`, `stage`, `httpMethod`, `resourcePath`, `status`, `responseLatency`, `identity.*`, `authorizer.claims.*`, `integration.*`, `error.*`, `waf.action`, plus a `billing` block with `requests`, `dataProcessedBytes`, `cacheHit`).
+
+Records land in two sinks:
+
+- **`kong-logger/logs/access-YYYYMMDD.jsonl`** — daily-rotated JSONL archive on disk.
+- **`platform-db.api_usage_records`** — queryable Postgres table indexed on `(api_id, request_time)`, `(consumer_id, request_time)`, and `request_id`. A convenience view `api_usage_hourly` aggregates request counts and bytes per consumer/api/hour, ready to feed a metered-billing pipeline.
 
 ## Prerequisites
 

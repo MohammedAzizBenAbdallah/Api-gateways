@@ -27,7 +27,7 @@ No manual Grafana setup is required. Everything is Git-tracked and provisioned f
 ## End-to-end data flow
 
 1. FastAPI exposes metrics at `backend:3000/metrics`.
-2. Kong exposes metrics at `kong:8001/metrics` (via declarative `prometheus` plugin).
+2. Kong (data plane) exposes metrics at `kong-dp:8100/metrics` via the Status API and the declarative `prometheus` plugin. The control plane (`kong-cp`) is private and not scraped.
 3. Prometheus scrapes both targets and evaluates alert rules.
 4. Prometheus sends active alerts to Alertmanager.
 5. Grafana reads Prometheus and Alertmanager datasources.

@@ -3,11 +3,12 @@
 Admin API router for Zero-Code Kong Edge Plugin management.
 
 This module acts as a proxy layer between the React Admin UI and the Kong
-Admin API (http://kong-gateway:8001). It translates simple UI actions into
-proper Kong plugin lifecycle operations, allowing non-technical administrators
-to manage gateway security without writing YAML or using the terminal.
+Admin API. In hybrid mode the Admin API only lives on the control plane
+(kong-cp), which is reachable from inside the docker network only. The
+URL is overridable via the KONG_ADMIN_URL env var.
 """
 
+import os
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
 import logging
@@ -24,7 +25,7 @@ router = APIRouter(
     dependencies=[Depends(verify_kong_header)]
 )
 
-KONG_ADMIN_URL = "http://kong-gateway:8001"
+KONG_ADMIN_URL = os.getenv("KONG_ADMIN_URL", "http://kong-cp:8001")
 KONG_TIMEOUT = 10.0
 
 # ──────────────────────────────────────────────

@@ -16,10 +16,12 @@ scrape_configs:
     static_configs:
       - targets: ['backend:3000']
 
+  # In Kong hybrid mode the Admin API is on the control plane (private),
+  # while data-plane prometheus metrics are exposed via the Status API on 8100.
   - job_name: 'kong'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['kong:8001']
+      - targets: ['kong-dp:8100']
 
   - job_name: 'prometheus'
     metrics_path: '/metrics'
