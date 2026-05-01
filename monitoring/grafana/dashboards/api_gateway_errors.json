@@ -1,0 +1,139 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "4xx vs 5xx rate (per 30s)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(request_time, '30s'), '4xx' AS metric, SUM(CASE WHEN status BETWEEN 400 AND 499 THEN 1 ELSE 0 END)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(request_time, '30s'), '5xx', SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END)::bigint FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "stacking": { "mode": "normal" } }, "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "5xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "4xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "stat",
+      "title": "Integration errors",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "id": 2,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND raw->'error' IS NOT NULL"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null },
+        { "color": "red", "value": 1 }
+      ]}}},
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "type": "stat",
+      "title": "Error rate %",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 4 },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (100.0 * SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0))::numeric(10,2) AS value FROM api_usage_records WHERE $__timeFilter(request_time)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null },
+        { "color": "yellow", "value": 1 },
+        { "color": "red", "value": 5 }
+      ]}}},
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "type": "table",
+      "title": "Recent errors (200 rows)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT request_time AS time, request_id, api_id, http_method, path, status, raw->'error'->>'responseType' AS error_type, source_ip, COALESCE(consumer_username, consumer_id, '<anon>') AS consumer FROM api_usage_records WHERE status >= 400 AND $__timeFilter(request_time) ORDER BY request_time DESC LIMIT 200"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "status" }, "properties": [
+            { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 400 },
+              { "color": "red", "value": 500 }
+            ]}}
+          ]}
+        ]
+      },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "logs",
+      "title": "Raw access logs (Loki) - errors only",
+      "datasource": { "type": "loki", "uid": "loki_ds_id" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 20 },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"kong-access\"} | json | status >= 400",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["api-gateway", "kong", "errors"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "API Gateway - Errors",
+  "uid": "api-gateway-errors",
+  "version": 1,
+  "weekStart": ""
+}

@@ -8,5 +8,34 @@ route:
   group_interval: 30s
   repeat_interval: 4h
 
+  # To start sending alerts somewhere real (Slack, email, PagerDuty, etc.)
+  # uncomment the receiver below and flip `receiver: default-log` above
+  # to `receiver: webhook` (one-line edit). The default-log receiver stays
+  # available as a no-op fallback so misconfiguration never silently drops alerts.
+  # routes:
+  #   - matchers:
+  #       - severity =~ "critical|warning"
+  #     receiver: webhook
+  #     continue: true
+
 receivers:
   - name: default-log
+
+  # Webhook receiver scaffold. Point `url` at any HTTP endpoint that accepts
+  # Alertmanager's JSON payload (Slack incoming webhook, a small relay,
+  # the FastAPI backend on host.docker.internal, etc.). `send_resolved: true`
+  # so we get clear "back to normal" notifications.
+  # - name: webhook
+  #   webhook_configs:
+  #     - url: http://host.docker.internal:5001/alerts
+  #       send_resolved: true
+
+  # Slack example (kept here as a reference - uncomment, paste your
+  # incoming-webhook URL, then switch `route.receiver` to `slack`):
+  # - name: slack
+  #   slack_configs:
+  #     - api_url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+  #       channel: '#api-gateway-alerts'
+  #       send_resolved: true
+  #       title: '{{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
+  #       text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}\n{{ end }}'

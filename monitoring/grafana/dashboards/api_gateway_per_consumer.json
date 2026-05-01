@@ -1,0 +1,172 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requests per hour",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(request_time, '1h'), 'requests' AS metric, COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND COALESCE(consumer_username, consumer_id) = '$consumer_username' GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 60 }, "unit": "short" } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Bytes processed (billing view, per hour)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(request_time, '1h'), 'bytes' AS metric, COALESCE(SUM(data_processed_bytes),0)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND COALESCE(consumer_username, consumer_id) = '$consumer_username' GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 60 }, "unit": "bytes" } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "table",
+      "title": "Top 10 APIs touched",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT api_id, COUNT(*)::bigint AS requests, SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END)::bigint AS errors, AVG(response_latency_ms)::numeric(10,1) AS avg_ms, SUM(data_processed_bytes)::bigint AS bytes FROM api_usage_records WHERE $__timeFilter(request_time) AND COALESCE(consumer_username, consumer_id) = '$consumer_username' GROUP BY api_id ORDER BY requests DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bytes" }, "properties": [{ "id": "unit", "value": "bytes" }] },
+          { "matcher": { "id": "byName", "options": "avg_ms" }, "properties": [{ "id": "unit", "value": "ms" }] }
+        ]
+      },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "stat",
+      "title": "4xx count",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND COALESCE(consumer_username, consumer_id) = '$consumer_username' AND status BETWEEN 400 AND 499"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null },
+        { "color": "yellow", "value": 10 },
+        { "color": "red", "value": 100 }
+      ]}}},
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "type": "stat",
+      "title": "5xx count",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND COALESCE(consumer_username, consumer_id) = '$consumer_username' AND status >= 500"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null },
+        { "color": "red", "value": 1 }
+      ]}}},
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "type": "stat",
+      "title": "Total requests (range)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 },
+      "id": 6,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND COALESCE(consumer_username, consumer_id) = '$consumer_username'"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "type": "stat",
+      "title": "Total bytes (range)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(data_processed_bytes),0)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND COALESCE(consumer_username, consumer_id) = '$consumer_username'"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["api-gateway", "kong", "billing"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+        "definition": "SELECT DISTINCT COALESCE(consumer_username, consumer_id) AS consumer FROM api_usage_records WHERE consumer_id IS NOT NULL OR consumer_username IS NOT NULL ORDER BY 1",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Consumer",
+        "multi": false,
+        "name": "consumer_username",
+        "options": [],
+        "query": "SELECT DISTINCT COALESCE(consumer_username, consumer_id) AS consumer FROM api_usage_records WHERE consumer_id IS NOT NULL OR consumer_username IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "API Gateway - Per Consumer",
+  "uid": "api-gateway-per-consumer",
+  "version": 1,
+  "weekStart": ""
+}

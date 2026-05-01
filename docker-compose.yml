@@ -437,12 +437,45 @@ services:
     depends_on:
       - prometheus
       - alertmanager
+      - loki
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    restart: on-failure
+    networks:
+      default:
+        aliases:
+          - loki
+
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: promtail
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./kong-logger/logs:/var/log/kong-access:ro
+      - ./monitoring/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - promtail_positions:/tmp
+    depends_on:
+      loki:
+        condition: service_started
+      kong-logger:
+        condition: service_started
+    restart: on-failure
 
 volumes:
   keycloak_data: {}
   kong_db_data: {}
   kong_cluster_certs: {}
   platform_db_data: {}
+  loki_data: {}
+  promtail_positions: {}

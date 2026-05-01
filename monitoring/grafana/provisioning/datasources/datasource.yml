@@ -32,3 +32,11 @@ datasources:
     editable: false
     jsonData:
       implementation: prometheus
+
+  - name: Loki
+    type: loki
+    uid: "loki_ds_id"
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false

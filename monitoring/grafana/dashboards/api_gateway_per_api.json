@@ -1,0 +1,135 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Request rate (req / 30s)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(request_time, '30s'), 'req' AS metric, COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND api_id = '$api_id' GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15 }, "unit": "short" } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "heatmap",
+      "title": "Latency distribution (heatmap, ms)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(request_time, '30s'), (LEAST(response_latency_ms, 5000) / 50 * 50)::text AS metric, COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND api_id = '$api_id' GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "options": { "calculate": false, "yAxis": { "unit": "ms" }, "color": { "mode": "scheme", "scheme": "Spectral" } }
+    },
+    {
+      "type": "piechart",
+      "title": "Status code distribution",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN status BETWEEN 200 AND 299 THEN '2xx' WHEN status BETWEEN 300 AND 399 THEN '3xx' WHEN status BETWEEN 400 AND 499 THEN '4xx' WHEN status BETWEEN 500 AND 599 THEN '5xx' ELSE 'other' END AS bucket, COUNT(*)::bigint AS count FROM api_usage_records WHERE $__timeFilter(request_time) AND api_id = '$api_id' GROUP BY 1"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "displayLabels": ["name", "percent"], "legend": { "displayMode": "list", "placement": "right" }, "pieType": "donut" }
+    },
+    {
+      "type": "table",
+      "title": "Top consumers hitting this API",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 8 },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(consumer_username, consumer_id, '<anon>') AS consumer, COUNT(*)::bigint AS requests, SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END)::bigint AS errors, AVG(response_latency_ms)::numeric(10,1) AS avg_ms, SUM(data_processed_bytes)::bigint AS bytes FROM api_usage_records WHERE $__timeFilter(request_time) AND api_id = '$api_id' GROUP BY 1 ORDER BY requests DESC LIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bytes" }, "properties": [{ "id": "unit", "value": "bytes" }] },
+          { "matcher": { "id": "byName", "options": "avg_ms" }, "properties": [{ "id": "unit", "value": "ms" }] }
+        ]
+      },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "table",
+      "title": "Recent 50 requests",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT request_time AS time, request_id, http_method, path, status, response_latency_ms AS latency_ms, COALESCE(consumer_username, consumer_id, '<anon>') AS consumer, source_ip FROM api_usage_records WHERE $__timeFilter(request_time) AND api_id = '$api_id' ORDER BY request_time DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "latency_ms" }, "properties": [{ "id": "unit", "value": "ms" }] }
+        ]
+      },
+      "options": { "showHeader": true }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["api-gateway", "kong", "drilldown"],
+  "templating": {
+    "list": [
+      {
+        "current": { "text": "All", "value": "$__all" },
+        "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+        "definition": "SELECT DISTINCT api_id FROM api_usage_records WHERE api_id IS NOT NULL ORDER BY 1",
+        "hide": 0,
+        "includeAll": false,
+        "label": "API",
+        "multi": false,
+        "name": "api_id",
+        "options": [],
+        "query": "SELECT DISTINCT api_id FROM api_usage_records WHERE api_id IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "API Gateway - Per API",
+  "uid": "api-gateway-per-api",
+  "version": 1,
+  "weekStart": ""
+}

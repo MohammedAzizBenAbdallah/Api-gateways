@@ -1,0 +1,202 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests (selected range)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "type": "stat",
+      "title": "Error rate (4xx + 5xx)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 2,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (100.0 * SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0))::numeric(10,2) AS value FROM api_usage_records WHERE $__timeFilter(request_time)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 5 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "type": "stat",
+      "title": "Bytes processed (last 24h)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(data_processed_bytes),0)::bigint AS value FROM api_usage_records WHERE request_time > now() - interval '24 hours'"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "type": "stat",
+      "title": "Avg latency (ms)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT AVG(response_latency_ms)::numeric(10,1) AS value FROM api_usage_records WHERE $__timeFilter(request_time)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "type": "stat",
+      "title": "Distinct consumers",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT consumer_id)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND consumer_id IS NOT NULL"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "type": "stat",
+      "title": "Distinct APIs",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 6,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT api_id)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) AND api_id IS NOT NULL"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "type": "timeseries",
+      "title": "Request rate by API (req / 30s bucket)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(request_time, '30s'), COALESCE(api_id,'unknown') AS metric, COUNT(*)::bigint AS value FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "stacking": { "mode": "normal" } }, "unit": "short" } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p50 / p95 / p99 (ms)",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 8,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(request_time, '30s'), 'p50' AS metric, percentile_disc(0.5) WITHIN GROUP (ORDER BY response_latency_ms)::numeric AS value FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(request_time, '30s'), 'p95', percentile_disc(0.95) WITHIN GROUP (ORDER BY response_latency_ms)::numeric FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(request_time, '30s'), 'p99', percentile_disc(0.99) WITHIN GROUP (ORDER BY response_latency_ms)::numeric FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5 }, "unit": "ms" } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "barchart",
+      "title": "Status code distribution",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "id": 9,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN status BETWEEN 200 AND 299 THEN '2xx' WHEN status BETWEEN 300 AND 399 THEN '3xx' WHEN status BETWEEN 400 AND 499 THEN '4xx' WHEN status BETWEEN 500 AND 599 THEN '5xx' ELSE 'other' END AS bucket, COUNT(*)::bigint AS count FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "orientation": "horizontal", "xTickLabelRotation": 0, "showValue": "auto", "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "table",
+      "title": "Top 10 routes by request count",
+      "datasource": { "type": "postgres", "uid": "platform_db_ds_id" },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 12 },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT api_id, stage, http_method, path, COUNT(*)::bigint AS requests, AVG(response_latency_ms)::numeric(10,1) AS avg_ms, SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END)::bigint AS errors FROM api_usage_records WHERE $__timeFilter(request_time) GROUP BY api_id, stage, http_method, path ORDER BY requests DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["api-gateway", "kong", "billing"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "API Gateway Overview",
+  "uid": "api-gateway-overview",
+  "version": 1,
+  "weekStart": ""
+}

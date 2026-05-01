@@ -19,7 +19,7 @@ groups:
           service: kong
         annotations:
           summary: "Kong metrics target is down"
-          description: "Prometheus cannot scrape kong:8001/metrics for more than 2 minutes."
+          description: "Prometheus cannot scrape kong-dp:8100/metrics (data-plane status API) for more than 2 minutes."
 
       - alert: ElevatedFastApi5xxRate
         expr: sum(rate(http_requests_total{job="fastapi_backend",status=~"5.."}[5m])) > 0.2
@@ -30,3 +30,55 @@ groups:
         annotations:
           summary: "FastAPI 5xx error rate is elevated"
           description: "5xx rate is above 0.2 req/s for 5 minutes."
+
+  - name: api-gateway-kong
+    rules:
+      # The kong prometheus plugin exposes kong_http_requests_total{code,...}
+      # at /metrics on kong-dp:8100. We alert when the 5xx share of all
+      # requests crosses 1% sustained over 5 minutes.
+      - alert: Kong5xxRateHigh
+        expr: |
+          sum(rate(kong_http_requests_total{code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(kong_http_requests_total[5m])), 1)
+          > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: kong
+        annotations:
+          summary: "Kong 5xx rate above 1%"
+          description: "More than 1% of requests served by Kong are 5xx for the last 5 minutes (see API Gateway - Errors dashboard)."
+
+      # kong_request_latency_ms is a histogram from the prometheus plugin.
+      # p95 over 5m above 1s is our SLO ceiling for this stack.
+      - alert: KongP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(kong_request_latency_ms_bucket[5m]))
+          ) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: kong
+        annotations:
+          summary: "Kong p95 request latency > 1s"
+          description: "p95 of kong_request_latency_ms is above 1000 ms over the last 5 minutes."
+
+      # Hybrid-mode safety net: every data-plane registers itself with the CP
+      # and the prometheus plugin on the DP exposes kong_data_plane_cluster_cert_expiry_timestamp
+      # per node. If the DP scrape disappears entirely we already have
+      # KongTargetDown; this rule additionally checks the kong_nginx_metric_errors_total
+      # plugin metric is present (i.e. plugin is loaded) so we know the DP is reachable
+      # but not necessarily healthy. If the prometheus plugin doesn't surface a node
+      # count we fall back to up{job="kong"} == 0 over 2m, which is what KongTargetDown does.
+      - alert: KongClusterDataPlaneStale
+        expr: absent(kong_nginx_metric_errors_total) or up{job="kong"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: kong
+        annotations:
+          summary: "Kong data plane appears stale or unreachable"
+          description: "Either the prometheus plugin metrics are missing from kong-dp:8100 or the scrape target is down for 2m. Check kong-dp logs and CP <-> DP cluster certs."

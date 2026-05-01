@@ -1,0 +1,59 @@
+apiVersion: 1
+
+# Grafana-managed alert (PlatformDB datasource) that fires when the
+# kong-logger Postgres sink has not inserted a row recently. Prometheus
+# can't see "is api_usage_records falling behind" directly, but Grafana
+# Alerting against the platform DB can. Equivalent of CloudWatch
+# "ApiGateway logs delivery latency", self-hosted.
+groups:
+  - orgId: 1
+    name: kong_logger_ingestion
+    folder: SLOs
+    interval: 1m
+    rules:
+      - uid: kong_logger_ingestion_stalled
+        title: KongLoggerIngestionStalled
+        condition: B
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: platform_db_ds_id
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              rawSql: "SELECT EXTRACT(EPOCH FROM (now() - max(request_time))) AS lag_s FROM api_usage_records"
+          - refId: B
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [120]
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    type: last
+                    params: []
+                  type: query
+        annotations:
+          summary: "kong-logger has not inserted a row in 2m"
+          description: |
+            max(request_time) in platform_permissions.api_usage_records is more than 120s behind wall-clock.
+            Check kong-logger /health (queue stats), Postgres connectivity, and kong-dp http-log plugin status.
+        labels:
+          severity: critical
+          service: kong-logger

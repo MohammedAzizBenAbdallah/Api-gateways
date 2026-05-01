@@ -1,0 +1,44 @@
+# Promtail tails the JSONL access logs that kong-logger writes to disk
+# (the same files the file sink rotates) and pushes them to Loki, parsing
+# the JSON so Grafana Logs queries can filter on apiId / stage / status.
+# Bounded-cardinality fields are promoted to labels; everything else is
+# left in the log line for ad-hoc LogQL `| json` parsing.
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: kong-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: kong-access
+          __path__: /var/log/kong-access/access-*.jsonl
+    pipeline_stages:
+      - json:
+          expressions:
+            api_id: apiId
+            stage: stage
+            status: status
+            request_id: requestId
+            response_latency: responseLatency
+      - labels:
+          api_id:
+          stage:
+          status:
+      # Use the request's epoch timestamp as the log line's timestamp when
+      # available, so dashboards/Logs panels line up with the Postgres rows.
+      - timestamp:
+          source: requestTimeEpoch
+          format: UnixMs
+          fallback_formats:
+            - RFC3339Nano
+            - RFC3339
+          action_on_failure: skip
