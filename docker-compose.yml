@@ -1,12 +1,12 @@
 services:
   # --- Identity & Access Management ---
   waf:
-    image: owasp/modsecurity-crs:nginx
+    build: ./waf
     container_name: waf
     ports:
       - "8081:8080"
     environment:
-      RESTRICTED_EXTENSIONS: ".cmd/ .com/ .config/ .dll/ .sql/ .py/ .js/ .php/"
+      RESTRICTED_EXTENSIONS: ".cmd/ .com/ .config/ .dll/ .sql/ .py/ "
       PARANOIA: 1
       BACKEND: "http://kong-dp:8000"
       PROXY_SSL: "off"
@@ -14,7 +14,7 @@ services:
 
       # ── Mode control ──────────────────────────────────────
       MODSEC_RULE_ENGINE: "On" # Prevention mode (blocks requests)
-      # MODSEC_RULE_ENGINE: "On" # ← switch back to on after testing
+      # MODSEC_RULE_ENGINE: "off" # ← switch to off to enable development mode ( warning only)
 
       # ── Audit logging ─────────────────────────────────────
       MODSEC_AUDIT_ENGINE: "On" # log only blocked requests
@@ -30,7 +30,6 @@ services:
       kong-dp:
         condition: service_healthy
     volumes:
-      - ./waf/99-exclusions.sh:/docker-entrypoint.d/99-exclusions.sh
       - ./waf/logs/modsec_audit.log:/var/log/modsec_audit.log # Map specific audit log file
   keycloak-db:
     image: quay.io/sclorg/postgresql-15-c9s:latest
@@ -90,7 +89,7 @@ services:
     container_name: kong-db
     environment:
       POSTGRES_USER: kong
-      POSTGRES_DB: kong 
+      POSTGRES_DB: kong
       POSTGRES_PASSWORD: kong
     volumes:
       - kong_db_data:/var/lib/postgresql/data
