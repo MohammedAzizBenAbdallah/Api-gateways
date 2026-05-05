@@ -594,7 +594,6 @@ class AIRequestService:
         outbound_provider_url = pf.service.provider_url
 
         try:
-            start = datetime.utcnow()
             if pf.service.provider_type == "gemini":
                 provider_data = await self._call_gemini_json(
                     provider_url=outbound_provider_url,
@@ -607,7 +606,6 @@ class AIRequestService:
                     messages=pf.messages,
                     stream=False,
                 )
-            elapsed_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
         except Exception as exc:
             logger.exception("Provider call failed: %s", exc)
             try:

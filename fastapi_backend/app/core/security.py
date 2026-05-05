@@ -75,17 +75,17 @@ async def get_current_user(
             f"http://197.14.4.163:8080/realms/{settings.keycloak_realm}",
         ]
 
-        # Decode with leeway to handle clock skew and disable strict issuer check if needed
+        # Leeway (seconds) tolerates clock skew between Keycloak and this service for exp.
         payload = jwt.decode(
             token,
             rsa_key,
             algorithms=["RS256"],
             options={
-                "verify_iss": False, # Relax issuer check to avoid internal/external URL mismatches
+                "verify_iss": False,  # Relax issuer check to avoid internal/external URL mismatches
                 "verify_aud": False,
-                "verify_exp": True
+                "verify_exp": True,
+                "leeway": 120,
             },
-            leeway=120, # 2 minutes leeway for clock skew
         )
 
         return payload

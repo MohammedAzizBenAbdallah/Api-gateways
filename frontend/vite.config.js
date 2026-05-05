@@ -17,7 +17,14 @@ export default defineConfig({
         rewrite: (path) => path,
       },
     },
-    allowedHosts: ["localhost", "127.0.0.1", "::1", "frontend", "197.14.4.163"],
+    allowedHosts: [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+      "frontend",
+      "197.14.4.163",
+      "frontend.ai-gateway.svc.cluster.local",
+    ],
     watch: {
       usePolling: true,
     },

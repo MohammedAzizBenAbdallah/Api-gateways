@@ -70,6 +70,12 @@ LoadBalancer Service (port 80/443)
 kubectl cluster-info
 
 # 2. Deploy the entire platform (one command)
+#    deploy.ps1 now runs preflight checks and builds local images
+.\deploy.ps1
+
+# Alternative (GNU make)
+make preflight
+make build-local-images
 make deploy
 
 # 3. Check everything is healthy
@@ -99,6 +105,12 @@ make status
 ## Useful Commands
 
 ```bash
+# Run deployment preflight checks only
+make preflight
+
+# Build images required by imagePullPolicy: Never
+make build-local-images
+
 # Deploy
 make deploy
 
@@ -125,6 +137,46 @@ make hpa
 # Remove everything
 make teardown
 ```
+
+---
+
+## TLS Model (Current)
+
+There are two TLS layers in this deployment:
+
+1. **Internal Kong CP↔DP mTLS (implemented and required)**
+   - Kong Control Plane (`kong-cp`) and Data Plane (`kong-dp`) use the `kong-cluster-certs` secret.
+   - Cert/key are mounted as `/certs/cluster.crt` and `/certs/cluster.key`.
+   - `deploy.ps1` auto-generates this secret if it does not exist.
+   - This secures the hybrid synchronization channel on ports `8005/8006`.
+
+2. **External client HTTPS (environment-dependent)**
+   - `kong-dp` listens on `8000` (HTTP) and `8443` (HTTPS) and is exposed as service ports `80/443`.
+   - In Docker Desktop local mode, traffic can use the `LoadBalancer` localhost endpoint, but certificate trust is not automatically production-grade.
+   - For cloud production, terminate TLS with Ingress + managed certificates.
+
+---
+
+## TLS Hardening Guidance
+
+- Keep **cluster mTLS certificates** separate from any **edge/public certificates**.
+- Rotate `kong-cluster-certs` on a schedule instead of one-time generation only.
+- Do not reuse CP/DP cluster certs for browser-facing HTTPS.
+- For production, use an ingress controller and automated cert issuance/renewal (for example cert-manager or cloud-native certificate integration).
+- Example manifests:
+  - `k8s/edge-tls-local-secret.example.yaml` (local development secret template)
+  - `k8s/edge-tls-production-ingress.example.yaml` (Ingress + cert-manager pattern)
+
+---
+
+## Common Local Issues
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| `ImagePullBackOff` on custom services | Local images not built | Run `make build-local-images` or `./deploy.ps1` |
+| HPA shows metric errors | `metrics-server` API missing on local cluster | Safe to ignore locally, or install metrics-server |
+| Keycloak/Kong Logger restart during first minutes | Slow startup / probe timing | Wait for startup probes and recheck `kubectl get pods -A` |
+| HTTPS works but browser warns about cert trust | Local/self-signed edge cert behavior | Use HTTP locally or install trusted local cert chain |
 
 ---
 

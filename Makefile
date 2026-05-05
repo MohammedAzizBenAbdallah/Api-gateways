@@ -9,7 +9,7 @@
 #   make admin       → Open Kong Admin API via port-forward
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: help deploy status teardown logs logs-kong logs-opa admin grafana restart-fastapi restart-kong
+.PHONY: help deploy preflight build-local-images status teardown logs logs-kong logs-opa admin grafana restart-fastapi restart-kong
 
 KUBECTL = kubectl
 NAMESPACES = ai-data ai-application ai-gateway ai-monitoring
@@ -20,6 +20,8 @@ help:
 	@echo "  Enterprise AI Gateway — Kubernetes Makefile"
 	@echo "  ──────────────────────────────────────────────────────────"
 	@echo "  make deploy          Deploy the entire platform to Kubernetes"
+	@echo "  make preflight       Validate tools, files, and cluster connectivity"
+	@echo "  make build-local-images Build local images used by Kubernetes manifests"
 	@echo "  make status          Show all pods and their health across all namespaces"
 	@echo "  make teardown        Remove ALL resources (warning: deletes PVCs/data)"
 	@echo "  make logs            Stream FastAPI backend logs"
@@ -33,7 +35,7 @@ help:
 	@echo ""
 
 # ── Deploy ────────────────────────────────────────────────────────────────────
-deploy:
+deploy: preflight build-local-images
 	@echo "🚀 Deploying Enterprise AI Gateway to Kubernetes..."
 	@echo "📦 Creating ConfigMaps for database initialization and Kong plugins..."
 	$(KUBECTL) apply -f k8s/namespaces.yaml
@@ -65,6 +67,33 @@ deploy:
 	@echo ""
 	@echo "✅ Deployment complete!"
 	@make status
+
+# ── Preflight ─────────────────────────────────────────────────────────────────
+preflight:
+	@echo "🔎 Running Kubernetes preflight checks..."
+	@kubectl cluster-info >/dev/null || (echo "Cluster unreachable (kubectl cluster-info failed)"; exit 1)
+	@test -f k8s/kustomization.yaml
+	@test -f k8s/secrets/secrets.yaml
+	@test -f backend/scripts/init-platform-db.sql
+	@test -f backend/scripts/init-platform-db-usage.sql
+	@test -d gateway/plugins/simple-validator
+	@test -d gateway/plugins/tenant-restriction
+	@test -f gateway/kong_final.yaml
+	@test -f keycloak/realm-export.json
+	@test -f monitoring/prometheus.yml
+	@test -d monitoring/grafana/dashboards
+	@test -d monitoring/grafana/provisioning/dashboards
+	@test -d monitoring/grafana/provisioning/datasources
+	@echo "✅ Preflight checks passed."
+	@kubectl api-versions | grep -q metrics.k8s.io || echo "⚠️  metrics-server API not available; HPA metrics warnings are expected."
+
+# ── Local image build ─────────────────────────────────────────────────────────
+build-local-images:
+	@echo "🐳 Building local Kubernetes images..."
+	@docker build -t api-gateways-backend:latest fastapi_backend
+	@docker build -t api-gateways-frontend:latest frontend
+	@docker build -t api-gateways-kong-logger:latest kong-logger
+	@echo "✅ Local images ready."
 
 # ── Status ────────────────────────────────────────────────────────────────────
 status:
