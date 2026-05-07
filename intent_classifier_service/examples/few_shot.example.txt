@@ -1,0 +1,6 @@
+# Optional few-shot lines for INTENT_CLASSIFIER / FEW_SHOT_EXAMPLES_PATH
+# Format per line: "label: example utterance"
+# general_chat: Hello, how are you today?
+# code_generation: Write a Python hello world function.
+# summarization: Give me a three-bullet summary of this paragraph.
+# advanced_chat: Explain the proof step-by-step with formal notation.

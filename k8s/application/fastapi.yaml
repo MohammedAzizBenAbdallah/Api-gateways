@@ -35,6 +35,11 @@ data:
   OPA_ALLOW_LOCAL_FALLBACK: "true"
   KONG_ADMIN_URL: "http://kong-cp.ai-gateway.svc.cluster.local:8001"
   ENVIRONMENT: "production"
+  INTENT_CLASSIFIER_URL: "http://intent-classifier.ai-application.svc.cluster.local:3010"
+  INTENT_CLASSIFIER_TIMEOUT_SECONDS: "0.35"
+  INTENT_CLASSIFIER_ENABLED: "true"
+  INTENT_CLASSIFIER_SHADOW: "false"
+  INTENT_TAXONOMY_PATH: "/etc/intent-taxonomy/intent_labels_v1.yaml"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -74,6 +79,10 @@ spec:
                 secretKeyRef:
                   name: platform-db-secret
                   key: DATABASE_URL
+          volumeMounts:
+            - name: intent-taxonomy
+              mountPath: /etc/intent-taxonomy
+              readOnly: true
           resources:
             requests:
               memory: "512Mi"
@@ -93,6 +102,10 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 10
             failureThreshold: 3
+      volumes:
+        - name: intent-taxonomy
+          configMap:
+            name: intent-taxonomy-v1
 ---
 # Service: Kong DP reaches FastAPI via this internal DNS name
 apiVersion: v1

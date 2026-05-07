@@ -91,6 +91,7 @@ preflight:
 build-local-images:
 	@echo "🐳 Building local Kubernetes images..."
 	@docker build -t api-gateways-backend:latest fastapi_backend
+	@docker build -f intent_classifier_service/Dockerfile -t api-gateways-intent-classifier:latest .
 	@docker build -t api-gateways-frontend:latest frontend
 	@docker build -t api-gateways-kong-logger:latest kong-logger
 	@echo "✅ Local images ready."

@@ -147,6 +147,15 @@ spec:
               app: fastapi
       ports:
         - port: 6379
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-application
+          podSelector:
+            matchLabels:
+              app: intent-classifier
+      ports:
+        - port: 6379
 ---
 # ── RULE 7: ai-application namespace — deny all, then allow selectively ──────
 apiVersion: networking.k8s.io/v1
@@ -283,3 +292,89 @@ spec:
               app: prometheus
       ports:
         - port: 8100
+---
+# ── RULE 13: FastAPI can reach intent-classifier ─────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-fastapi-to-intent-classifier
+  namespace: ai-application
+  labels:
+    project: enterprise-ai-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: intent-classifier
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: fastapi
+      ports:
+        - port: 3010
+---
+# ── RULE 14: intent-classifier egress (single policy: Redis + DNS + HTTPS) ───
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intent-classifier-egress
+  namespace: ai-application
+  labels:
+    project: enterprise-ai-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: intent-classifier
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-data
+          podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+---
+# ── RULE 15: Prometheus can scrape intent-classifier metrics ────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-to-intent-classifier
+  namespace: ai-application
+  labels:
+    project: enterprise-ai-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: intent-classifier
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 3010

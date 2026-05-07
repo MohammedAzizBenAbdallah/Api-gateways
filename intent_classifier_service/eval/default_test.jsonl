@@ -1,0 +1,36 @@
+{"text": "Hi there, how is your day going?", "label": "general_chat"}
+{"text": "Good morning! Just wanted to say hello.", "label": "general_chat"}
+{"text": "What is the weather like today?", "label": "general_chat"}
+{"text": "Tell me a short joke.", "label": "general_chat"}
+{"text": "Who won the game last night?", "label": "general_chat"}
+{"text": "Can you recommend a good book?", "label": "general_chat"}
+{"text": "Thanks for your help!", "label": "general_chat"}
+{"text": "What does IDK stand for?", "label": "general_chat"}
+{"text": "Write a Python function that reverses a string.", "label": "code_generation"}
+{"text": "Implement quicksort in Java.", "label": "code_generation"}
+{"text": "Show me a bash script to list large files.", "label": "code_generation"}
+{"text": "Create a SQL query to join users and orders.", "label": "code_generation"}
+{"text": "Refactor this code to use async await.", "label": "code_generation"}
+{"text": "Generate unit tests for a calculator class.", "label": "code_generation"}
+{"text": "Fix this TypeScript type error in my component.", "label": "code_generation"}
+{"text": "Give me a Dockerfile for a Node app.", "label": "code_generation"}
+{"text": "how do i sort a list in c++", "label": "code_generation"}
+{"text": "How do I reverse a string in Python?", "label": "code_generation"}
+{"text": "What is wrong with this segfault in my C program?", "label": "code_generation"}
+{"text": "Implement a binary search in TypeScript.", "label": "code_generation"}
+{"text": "Summarize the following article in three bullet points: ...", "label": "summarization"}
+{"text": "TL;DR this long email for me.", "label": "summarization"}
+{"text": "Condense this meeting notes into action items.", "label": "summarization"}
+{"text": "Provide a brief summary of the key findings.", "label": "summarization"}
+{"text": "In two sentences, summarize the plot of the novel.", "label": "summarization"}
+{"text": "Abstract this research paper for a busy executive.", "label": "summarization"}
+{"text": "Give me the main takeaways from this report.", "label": "summarization"}
+{"text": "Short summary of the terms and conditions section.", "label": "summarization"}
+{"text": "Explain quantum entanglement with rigorous detail and citations.", "label": "advanced_chat"}
+{"text": "Walk me through a formal proof of the binomial theorem.", "label": "advanced_chat"}
+{"text": "Analyze the macroeconomic implications of rising interest rates.", "label": "advanced_chat"}
+{"text": "Compare Kantian and utilitarian ethics in depth.", "label": "advanced_chat"}
+{"text": "Derive the backpropagation equations for a neural network.", "label": "advanced_chat"}
+{"text": "Discuss trade-offs between CAP theorem and distributed databases.", "label": "advanced_chat"}
+{"text": "What are the latest theoretical advances in fusion energy?", "label": "advanced_chat"}
+{"text": "Provide a detailed critique of this philosophical argument.", "label": "advanced_chat"}

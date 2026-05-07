@@ -94,6 +94,7 @@ make status
 | `data/databases.yaml` | ai-data | Kong DB + Keycloak DB + Redis |
 | `application/opa.yaml` | ai-application | OPA (2 replicas) + Rego policy |
 | `application/fastapi.yaml` | ai-application | FastAPI (3 replicas) + HPA |
+| `application/intent-classifier.yaml` | ai-application | Intent classifier (2 replicas + HPA) + taxonomy ConfigMap |
 | `application/keycloak-and-logger.yaml` | ai-application | Keycloak + Kong Logger |
 | `gateway/kong-cp.yaml` | ai-gateway | Kong Control Plane |
 | `gateway/kong-dp.yaml` | ai-gateway | Kong Data Plane (3 replicas) + HPA |
@@ -240,6 +241,7 @@ k8s/
 │   └── databases.yaml             ← Kong DB + Keycloak DB + Redis
 ├── application/
 │   ├── opa.yaml                   ← Policy engine (2 replicas)
+│   ├── intent-classifier.yaml     ← Zero-shot intent service (2 replicas + HPA)
 │   ├── fastapi.yaml               ← AI backend (3 replicas + HPA)
 │   └── keycloak-and-logger.yaml   ← Identity + log receiver
 └── gateway/

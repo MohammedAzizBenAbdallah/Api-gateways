@@ -7,7 +7,7 @@ from enum import Enum
 import logging
 from typing import Any, Dict, List, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field as PydanticField
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,10 @@ class AIRequestMetadata(BaseModel):
 class AIRequestSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    intent: str = "general_chat"
+    intent: str = PydanticField(
+        default="general_chat",
+        description='Explicit intent name, or "auto" to classify from message text via intent-classifier.',
+    )
     payload: AIRequestPayload
     metadata: AIRequestMetadata
 

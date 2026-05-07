@@ -1,0 +1,14 @@
+# Bundled copy — keep in sync with ../../intent_taxonomy/intent_labels_v1.yaml
+version: "1"
+confidence_threshold: 0.32
+hypothesis_template: "This is related to {}."
+candidate_labels:
+  - general_chat
+  - code_generation
+  - summarization
+  - advanced_chat
+label_hypotheses:
+  general_chat: "casual chat and everyday small talk"
+  code_generation: "software and programming"
+  summarization: "brief summaries and TL;DR of content"
+  advanced_chat: "formal proofs and deep technical theory"

@@ -13,6 +13,7 @@ The platform consists of several interconnected services working together to pro
 | **ModSecurity WAF** | 8081 | Web Application Firewall in front of `kong-dp`. |
 | **Keycloak** | 8080 | Identity and Access Management (IAM) for authentication and RBAC. |
 | **FastAPI Backend** | 3000 | Core business logic and AI orchestration service. |
+| **Intent Classifier** | 3010 | HuggingFace zero-shot intent labels + Redis cache (`docker compose` service `intent-classifier`). |
 | **React Frontend** | 5173 | Modern Vite-based UI for interacting with the platform. |
 | **Ollama (host)** | 11434 | Local LLM runner (running on the host machine). |
 | **Hello World** | 8003 | Node.js test service for validation. |

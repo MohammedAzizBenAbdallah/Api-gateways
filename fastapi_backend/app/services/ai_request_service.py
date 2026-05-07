@@ -26,8 +26,11 @@ from app.core.exceptions import (
     QuotaExceededError,
     SecurityViolationError,
 )
+from app.core.config import settings
 from app.repositories.usage_repository import create_usage_log as _create_usage_log
 from app.infrastructure.ai_provider.ollama_client import chat as ollama_chat
+from app.infrastructure.intent_classifier.client import IntentClassifierClient
+from app.intent_classification.contract import UNCLASSIFIED_LABEL
 from app.repositories.ai_request_repository import (
     create_ai_request,
     update_ai_request_status,
@@ -78,6 +81,7 @@ class AIRequestService:
         prompt_security_service: PromptSecurityService,
         output_guard_service: OutputGuardService,
         session_factory: Any,
+        intent_classifier_client: IntentClassifierClient | None = None,
     ) -> None:
         self._intent_cache_service = intent_cache_service
         self._content_inspector_service = content_inspector_service
@@ -86,8 +90,20 @@ class AIRequestService:
         self._prompt_security = prompt_security_service
         self._output_guard = output_guard_service
         self._session_factory = session_factory
+        self._intent_classifier = intent_classifier_client or IntentClassifierClient()
 
     # ── Private helpers ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _messages_to_classify_text(body: Any) -> str:
+        """Flatten chat messages into one string for intent classification."""
+        parts: List[str] = []
+        for m in body.payload.messages:
+            role = getattr(m, "role", "") or ""
+            content = (getattr(m, "content", "") or "").strip()
+            if content:
+                parts.append(f"{role}: {content}")
+        return "\n".join(parts).strip()
 
     def _gemini_headers(self) -> Dict[str, str]:
         """Build Gemini request headers copied from the exploit logic."""
@@ -226,13 +242,49 @@ class AIRequestService:
         Raises domain exceptions on any check failure.
         """
         request_id = str(uuid.uuid4())
-        intent_name: str = body.intent
+        raw_intent: str = body.intent
         environment: str = body.metadata.environment
 
         # ── Tenant validation ──
         tenant_id = current_user.get("tenant_id") or "tenant-a" # Fallback for test/demo
         if not tenant_id:
             raise TenantIdMissingError()
+
+        # ── Intent classification (auto) or shadow logging ──
+        classify_text = self._messages_to_classify_text(body)
+        intent_name = raw_intent
+        if raw_intent == settings.intent_auto_token:
+            if classify_text and self._intent_classifier.is_configured:
+                decision = await self._intent_classifier.classify(
+                    text=classify_text,
+                    tenant_id=tenant_id,
+                    environment=environment,
+                )
+                intent_name = decision.intent_label
+                logger.info(
+                    "Intent auto-classified: label=%s confidence=%s source=%s",
+                    decision.intent_label,
+                    decision.confidence,
+                    decision.source,
+                )
+            else:
+                intent_name = UNCLASSIFIED_LABEL
+                logger.info(
+                    "Intent auto requested but classifier unavailable or empty text; using %s",
+                    UNCLASSIFIED_LABEL,
+                )
+        elif settings.intent_classifier_shadow and self._intent_classifier.is_configured and classify_text:
+            decision = await self._intent_classifier.classify(
+                text=classify_text,
+                tenant_id=tenant_id,
+                environment=environment,
+            )
+            logger.info(
+                "Intent shadow classify: provided=%s predicted=%s confidence=%s",
+                raw_intent,
+                decision.intent_label,
+                decision.confidence,
+            )
 
         # ── Intent resolution ──
         resolved_service_id = self._intent_cache_service.resolve_intent(intent_name)

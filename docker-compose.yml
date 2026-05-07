@@ -250,6 +250,36 @@ services:
       retries: 5
 
   # --- Backend API (FastAPI) ---
+  intent-classifier:
+    build:
+      context: .
+      dockerfile: intent_classifier_service/Dockerfile
+    container_name: intent_classifier
+    environment:
+      PORT: 3010
+      REDIS_URL: redis://redis:6379/1
+      INTENT_TAXONOMY_PATH: /app/intent_taxonomy/intent_labels_v1.yaml
+      LLM_BASE_URL: http://host.docker.internal:11434/api/chat
+      LLM_MODEL: llama3.2
+      LLM_TIMEOUT_SECONDS: "45"
+      INTENT_CLASSIFIER_CACHE_TTL_SECONDS: "3600"
+    ports:
+      - "3010:3010"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:3010/readyz', timeout=5)\"",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 180s
+    restart: on-failure
+
   backend:
     build: ./fastapi_backend
     container_name: fastapi_backend
@@ -268,10 +298,16 @@ services:
       OPA_DATA_PATH: /v1/data/policies
       OPA_TIMEOUT_SECONDS: "2.0"
       KONG_ADMIN_URL: http://kong-cp:8001
+      INTENT_CLASSIFIER_URL: http://intent-classifier:3010
+      INTENT_CLASSIFIER_TIMEOUT_SECONDS: "0.25"
+      INTENT_CLASSIFIER_ENABLED: "true"
+      INTENT_CLASSIFIER_SHADOW: "false"
+      INTENT_TAXONOMY_PATH: /app/intent_taxonomy/intent_labels_v1.yaml
     ports:
       - "3000:3000"
     volumes:
       - ./fastapi_backend:/app
+      - ./intent_taxonomy:/app/intent_taxonomy:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: on-failure
@@ -282,6 +318,8 @@ services:
         condition: service_healthy
       opa:
         condition: service_started
+      intent-classifier:
+        condition: service_healthy
 
   # --- Policy Decision Point (Open Policy Agent) ---
   opa:

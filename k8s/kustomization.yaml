@@ -11,6 +11,7 @@ resources:
 
   # ── Step 4: Application layer ─────────────────────────────────────────────
   - application/opa.yaml
+  - application/intent-classifier.yaml
   - application/fastapi.yaml
   - application/keycloak-and-logger.yaml
 

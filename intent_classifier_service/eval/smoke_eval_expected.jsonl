@@ -1,0 +1,4 @@
+{"text":"Hi there, how is your day going?","expected_intent":"general_chat"}
+{"text":"Write a Python function that reverses a string.","expected_intent":"code_generation"}
+{"text":"Summarize this article in two bullet points.","expected_intent":"summarization"}
+{"text":"Explain quantum entanglement with rigorous detail.","expected_intent":"advanced_chat"}

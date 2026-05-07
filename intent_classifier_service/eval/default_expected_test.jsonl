@@ -1,0 +1,36 @@
+{"text": "Hi there, how is your day going?", "expected_intent": "general_chat"}
+{"text": "Good morning! Just wanted to say hello.", "expected_intent": "general_chat"}
+{"text": "What is the weather like today?", "expected_intent": "general_chat"}
+{"text": "Tell me a short joke.", "expected_intent": "general_chat"}
+{"text": "Who won the game last night?", "expected_intent": "general_chat"}
+{"text": "Can you recommend a good book?", "expected_intent": "general_chat"}
+{"text": "Thanks for your help!", "expected_intent": "general_chat"}
+{"text": "What does IDK stand for?", "expected_intent": "general_chat"}
+{"text": "Write a Python function that reverses a string.", "expected_intent": "code_generation"}
+{"text": "Implement quicksort in Java.", "expected_intent": "code_generation"}
+{"text": "Show me a bash script to list large files.", "expected_intent": "code_generation"}
+{"text": "Create a SQL query to join users and orders.", "expected_intent": "code_generation"}
+{"text": "Refactor this code to use async await.", "expected_intent": "code_generation"}
+{"text": "Generate unit tests for a calculator class.", "expected_intent": "code_generation"}
+{"text": "Fix this TypeScript type error in my component.", "expected_intent": "code_generation"}
+{"text": "Give me a Dockerfile for a Node app.", "expected_intent": "code_generation"}
+{"text": "how do i sort a list in c++", "expected_intent": "code_generation"}
+{"text": "How do I reverse a string in Python?", "expected_intent": "code_generation"}
+{"text": "What is wrong with this segfault in my C program?", "expected_intent": "code_generation"}
+{"text": "Implement a binary search in TypeScript.", "expected_intent": "code_generation"}
+{"text": "Summarize the following article in three bullet points: ...", "expected_intent": "summarization"}
+{"text": "TL;DR this long email for me.", "expected_intent": "summarization"}
+{"text": "Condense this meeting notes into action items.", "expected_intent": "summarization"}
+{"text": "Provide a brief summary of the key findings.", "expected_intent": "summarization"}
+{"text": "In two sentences, summarize the plot of the novel.", "expected_intent": "summarization"}
+{"text": "Abstract this research paper for a busy executive.", "expected_intent": "summarization"}
+{"text": "Give me the main takeaways from this report.", "expected_intent": "summarization"}
+{"text": "Short summary of the terms and conditions section.", "expected_intent": "summarization"}
+{"text": "Explain quantum entanglement with rigorous detail and citations.", "expected_intent": "advanced_chat"}
+{"text": "Walk me through a formal proof of the binomial theorem.", "expected_intent": "advanced_chat"}
+{"text": "Analyze the macroeconomic implications of rising interest rates.", "expected_intent": "advanced_chat"}
+{"text": "Compare Kantian and utilitarian ethics in depth.", "expected_intent": "advanced_chat"}
+{"text": "Derive the backpropagation equations for a neural network.", "expected_intent": "advanced_chat"}
+{"text": "Discuss trade-offs between CAP theorem and distributed databases.", "expected_intent": "advanced_chat"}
+{"text": "What are the latest theoretical advances in fusion energy?", "expected_intent": "advanced_chat"}
+{"text": "Provide a detailed critique of this philosophical argument.", "expected_intent": "advanced_chat"}

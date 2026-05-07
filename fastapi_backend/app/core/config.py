@@ -46,6 +46,35 @@ class Settings(BaseSettings):
     # at runtime (fail-closed) instead of allowing potentially stale decisions.
     opa_fail_closed: bool = Field(default=False, alias="OPA_FAIL_CLOSED")
 
+    # Intent classifier microservice (orchestrator calls HTTP before routing)
+    intent_classifier_url: str | None = Field(
+        default=None,
+        alias="INTENT_CLASSIFIER_URL",
+        description="Base URL e.g. http://intent-classifier:3010",
+    )
+    intent_classifier_timeout_seconds: float = Field(
+        default=0.25,
+        alias="INTENT_CLASSIFIER_TIMEOUT_SECONDS",
+    )
+    intent_classifier_enabled: bool = Field(default=True, alias="INTENT_CLASSIFIER_ENABLED")
+    intent_classifier_shadow: bool = Field(
+        default=False,
+        alias="INTENT_CLASSIFIER_SHADOW",
+        description="If true, log predicted vs provided intent without changing routing",
+    )
+    intent_auto_token: str = Field(
+        default="auto",
+        alias="INTENT_AUTO_TOKEN",
+        description="When request intent equals this (case-sensitive), call classifier",
+    )
+    intent_taxonomy_path: str | None = Field(
+        default=None,
+        alias="INTENT_TAXONOMY_PATH",
+    )
+    gemini_api_key: str = Field(
+        default="",
+        alias="GEMINI_API_KEY",
+    )
     model_config = SettingsConfigDict(
         env_file=".env", 
         env_file_encoding="utf-8",
