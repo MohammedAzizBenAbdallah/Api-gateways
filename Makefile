@@ -9,7 +9,7 @@
 #   make admin       → Open Kong Admin API via port-forward
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: help deploy preflight build-local-images status teardown logs logs-kong logs-opa admin grafana restart-fastapi restart-kong
+.PHONY: help deploy preflight build-local-images status teardown logs logs-kong logs-opa admin grafana restart-fastapi restart-kong gitops-render-dev gitops-render-staging gitops-render-prod gitops-argocd-bootstrap
 
 KUBECTL = kubectl
 NAMESPACES = ai-data ai-application ai-gateway ai-monitoring
@@ -172,3 +172,23 @@ hpa:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	$(KUBECTL) get hpa -n ai-application
 	$(KUBECTL) get hpa -n ai-gateway
+
+# ── GitOps Utilities ───────────────────────────────────────────────────────────
+gitops-render-dev:
+	kustomize build k8s/gitops/overlays/dev --load-restrictor LoadRestrictionsNone > /dev/null
+	@echo "✅ Dev overlay renders successfully"
+
+gitops-render-staging:
+	kustomize build k8s/gitops/overlays/staging --load-restrictor LoadRestrictionsNone > /dev/null
+	@echo "✅ Staging overlay renders successfully"
+
+gitops-render-prod:
+	kustomize build k8s/gitops/overlays/prod --load-restrictor LoadRestrictionsNone > /dev/null
+	@echo "✅ Prod overlay renders successfully"
+
+gitops-argocd-bootstrap:
+	$(KUBECTL) apply -f k8s/gitops/argocd/project-ai-gateway.yaml
+	$(KUBECTL) apply -f k8s/gitops/argocd/app-dev.yaml
+	$(KUBECTL) apply -f k8s/gitops/argocd/app-staging.yaml
+	$(KUBECTL) apply -f k8s/gitops/argocd/app-prod.yaml
+	@echo "✅ Argo CD project and applications applied"

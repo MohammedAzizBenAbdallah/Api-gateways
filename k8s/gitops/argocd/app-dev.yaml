@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-gateway-dev
+  namespace: argocd
+  labels:
+    environment: dev
+    team: ai-platform
+spec:
+  project: ai-gateway
+  source:
+    repoURL: "https://github.com/MohammedAzizBenAbdallah/Api-gateways.git"
+    targetRevision: main
+    path: k8s/gitops/overlays/dev
+    kustomize:
+      buildOptions: --load-restrictor LoadRestrictionsNone
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai-gateway
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

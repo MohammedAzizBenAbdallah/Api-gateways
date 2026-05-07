@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ai-gateway
+  namespace: argocd
+spec:
+  description: GitOps project for the Deterministic Enterprise AI Orchestration Platform
+  sourceRepos:
+    - "https://github.com/MohammedAzizBenAbdallah/Api-gateways.git"
+  destinations:
+    - namespace: ai-gateway
+      server: https://kubernetes.default.svc
+    - namespace: ai-application
+      server: https://kubernetes.default.svc
+    - namespace: ai-data
+      server: https://kubernetes.default.svc
+    - namespace: ai-monitoring
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

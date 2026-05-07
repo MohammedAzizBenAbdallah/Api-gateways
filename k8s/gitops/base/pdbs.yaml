@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fastapi-pdb
+  namespace: ai-application
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: fastapi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kong-dp-pdb
+  namespace: ai-gateway
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: kong-dp

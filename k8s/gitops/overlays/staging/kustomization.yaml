@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+labels:
+  - pairs:
+      environment: staging
+
+images:
+  - name: api-gateways-backend
+    newName: ghcr.io/mohammedazizbenabdallah/api-gateways-backend
+    newTag: v1.0.0-rc.1
+  - name: api-gateways-frontend
+    newName: ghcr.io/mohammedazizbenabdallah/api-gateways-frontend
+    newTag: v1.0.0-rc.1
+
+patches:
+  - path: patch-deployments.yaml

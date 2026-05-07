@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+labels:
+  - pairs:
+      environment: prod
+
+images:
+  - name: api-gateways-backend
+    newName: ghcr.io/mohammedazizbenabdallah/api-gateways-backend
+    # Immutable digest ensures deterministic, auditable production releases
+    digest: sha256:a3b8f7e2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0
+  - name: api-gateways-frontend
+    newName: ghcr.io/mohammedazizbenabdallah/api-gateways-frontend
+    digest: sha256:f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9
+
+patches:
+  - path: patch-deployments.yaml

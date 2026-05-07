@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi
+  namespace: ai-application
+spec:
+  replicas: 4
+  template:
+    spec:
+      containers:
+        - name: fastapi
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fastapi-hpa
+  namespace: ai-application
+spec:
+  minReplicas: 4
+  maxReplicas: 12
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-dp
+  namespace: ai-gateway
+spec:
+  replicas: 4
+  template:
+    spec:
+      containers:
+        - name: kong-dp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kong-dp-hpa
+  namespace: ai-gateway
+spec:
+  minReplicas: 4
+  maxReplicas: 12
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: ai-gateway
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: frontend
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fastapi-config
+  namespace: ai-application
+data:
+  OPA_ALLOW_LOCAL_FALLBACK: "false"
+  LOG_LEVEL: "warning"
+  ENVIRONMENT: "production"
