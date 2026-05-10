@@ -21,6 +21,7 @@ const AdminPortal = ({ token, onClose }) => {
   const [kongRoutes, setKongRoutes] = useState([]);
   const [kongPlugins, setKongPlugins] = useState([]);
   const [pluginCatalog, setPluginCatalog] = useState([]);
+  const [routeDiscoveryData, setRouteDiscoveryData] = useState(null);
   const [showPluginModal, setShowPluginModal] = useState(false);
   const [selectedPlugin, setSelectedPlugin] = useState(null);
   const [pluginFormData, setPluginFormData] = useState({});
@@ -56,6 +57,7 @@ const AdminPortal = ({ token, onClose }) => {
       fetchKongRoutes();
       fetchKongPlugins();
       fetchPluginCatalog();
+      fetchRouteDiscovery();
       fetchSecurityScore();
       fetchSecurityEvents();
       fetchQuotasList();
@@ -140,6 +142,34 @@ const AdminPortal = ({ token, onClose }) => {
       setPluginCatalog(resp.data);
     } catch (err) {
       console.error("Failed to fetch plugin catalog", err);
+    }
+  };
+
+  const fetchRouteDiscovery = async () => {
+    try {
+      const resp = await axios.get("/api/admin/gateway/route-discovery", {
+        headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
+      });
+      setRouteDiscoveryData(resp.data);
+    } catch (err) {
+      console.error("Failed to fetch route discovery", err);
+    }
+  };
+
+  const handleAutoRegister = async (path, methods) => {
+    try {
+      await axios.post("/api/admin/gateway/auto-register", {
+        path,
+        methods
+      }, {
+        headers: { Authorization: `Bearer ${token}`, "kong-header": "true" },
+      });
+      // Refresh data
+      fetchRouteDiscovery();
+      fetchKongRoutes();
+    } catch (err) {
+      console.error("Failed to auto-register route", err);
+      setError("Failed to auto-register route");
     }
   };
 
@@ -1150,7 +1180,7 @@ const AdminPortal = ({ token, onClose }) => {
 
             {/* Security Sub-Navigation */}
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {[{key:"routes",label:"🌐 Routes & Services"},{key:"marketplace",label:"🛒 Plugin Marketplace"},{key:"active",label:"⚡ Active Plugins"},{key:"patterns",label:"🛡️ AI Threat Patterns"},{key:"feed",label:"📡 Live Threat Feed"},{key:"quotas",label:"💰 Quotas"}].map(t => (
+              {[{key:"discovery",label:"🔍 Route Discovery"},{key:"routes",label:"🌐 Routes & Services"},{key:"marketplace",label:"🛒 Plugin Marketplace"},{key:"active",label:"⚡ Active Plugins"},{key:"patterns",label:"🛡️ AI Threat Patterns"},{key:"feed",label:"📡 Live Threat Feed"},{key:"quotas",label:"💰 Quotas"}].map(t => (
                 <button key={t.key} onClick={() => setSecuritySubTab(t.key)} style={{
                   padding: "8px 16px", borderRadius: "10px", border: securitySubTab === t.key ? "1px solid var(--accent-primary)" : "1px solid var(--glass-border)",
                   background: securitySubTab === t.key ? "rgba(99, 102, 241, 0.15)" : "var(--bg-card)",
@@ -1182,7 +1212,14 @@ const AdminPortal = ({ token, onClose }) => {
                         <span style={{ fontWeight: 700, color: "var(--text-header)", fontSize: "1.05rem" }}>{route.name}</span>
                         <code style={{ fontSize: "0.8rem", background: "rgba(99, 102, 241, 0.1)", color: "var(--accent-primary)", padding: "3px 10px", borderRadius: "8px" }}>{(route.paths || []).join(", ")}</code>
                       </div>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-dim)", background: "var(--bg-deep)", padding: "3px 10px", borderRadius: "8px" }}>→ {route.service_name}</span>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-dim)", background: "var(--bg-deep)", padding: "3px 10px", borderRadius: "8px" }}>→ {route.service_name}</span>
+                        <button onClick={() => {
+                          setPluginScope("route");
+                          setPluginRouteId(route.id);
+                          setSecuritySubTab("marketplace");
+                        }} style={{ padding: "3px 10px", background: "var(--accent-primary)", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>+ Add Plugin</button>
+                      </div>
                     </div>
                     <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                       {route.plugins.length === 0 ? (
@@ -1198,6 +1235,85 @@ const AdminPortal = ({ token, onClose }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* ── SUB-TAB: Route Discovery ── */}
+            {securitySubTab === "discovery" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <h3 style={{ color: "var(--text-header)", margin: 0 }}>Intelligent Route Discovery</h3>
+                    <p style={{ color: "var(--text-dim)", fontSize: "0.85rem", margin: "0.3rem 0 0 0" }}>Auto-scans your FastAPI backend and cross-references with Kong Gateway to identify security gaps.</p>
+                  </div>
+                  <button className="dashboard-btn" onClick={() => fetchRouteDiscovery()} style={{ fontSize: "0.85rem" }}>🔄 Scan Now</button>
+                </div>
+                
+                {!routeDiscoveryData ? (
+                  <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-dim)", background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)" }}>
+                    {loading ? "Scanning routes..." : "No data available."}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", gap: "1rem" }}>
+                      <div style={{ flex: 1, padding: "1.5rem", borderRadius: "16px", background: "var(--bg-card)", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)", textAlign: "center" }}>
+                        <div style={{ fontSize: "2.5rem", fontWeight: 800, color: routeDiscoveryData.coverage_percent >= 80 ? '#34d399' : routeDiscoveryData.coverage_percent >= 50 ? '#fbbf24' : '#ef4444' }}>{routeDiscoveryData.coverage_percent}%</div>
+                        <div style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>Protection Coverage</div>
+                      </div>
+                      <div style={{ flex: 1, padding: "1.5rem", borderRadius: "16px", background: "var(--bg-card)", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)", textAlign: "center" }}>
+                        <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "var(--text-header)" }}>{routeDiscoveryData.total_backend_paths}</div>
+                        <div style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>Total Backend Paths</div>
+                      </div>
+                      <div style={{ flex: 1, padding: "1.5rem", borderRadius: "16px", background: "var(--bg-card)", border: "1px solid var(--glass-border)", boxShadow: "var(--shadow-premium)", textAlign: "center" }}>
+                        <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "var(--text-header)" }}>{routeDiscoveryData.total_kong_routes}</div>
+                        <div style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>Registered Kong Routes</div>
+                      </div>
+                    </div>
+                    
+                    <h4 style={{ color: "var(--text-header)", marginTop: "1rem", marginBottom: "0.5rem" }}>Backend Paths Analysis</h4>
+                    <div style={{ background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)", overflow: "hidden" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                        <thead style={{ background: "var(--bg-deep)", borderBottom: "1px solid var(--glass-border)" }}>
+                          <tr>
+                            <th style={{ padding: "1rem", textAlign: "left", color: "var(--text-dim)" }}>Path</th>
+                            <th style={{ padding: "1rem", textAlign: "left", color: "var(--text-dim)" }}>Methods</th>
+                            <th style={{ padding: "1rem", textAlign: "left", color: "var(--text-dim)" }}>Status</th>
+                            <th style={{ padding: "1rem", textAlign: "center", color: "var(--text-dim)" }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {routeDiscoveryData.paths.map((p, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid var(--glass-border)", background: p.status === "protected" ? "rgba(52, 211, 153, 0.05)" : p.status === "registered" ? "rgba(251, 191, 36, 0.05)" : "rgba(239, 68, 68, 0.05)" }}>
+                              <td style={{ padding: "1rem", color: "var(--text-header)", fontWeight: 600 }}>{p.path}</td>
+                              <td style={{ padding: "1rem" }}>
+                                <div style={{ display: "flex", gap: "0.3rem" }}>
+                                  {p.methods.map(m => <span key={`${p.path}-${m}`} style={{ fontSize: "0.7rem", padding: "2px 6px", background: "var(--bg-deep)", color: "var(--text-dim)", borderRadius: "4px" }}>{m}</span>)}
+                                </div>
+                              </td>
+                              <td style={{ padding: "1rem" }}>
+                                {p.status === "protected" && <span style={{ color: "#34d399", fontWeight: 600 }}>🟢 Protected</span>}
+                                {p.status === "registered" && <span style={{ color: "#fbbf24", fontWeight: 600 }}>🟡 Registered (No Plugins)</span>}
+                                {p.status === "exposed" && <span style={{ color: "#ef4444", fontWeight: 600 }}>🔴 Exposed (Not in Kong)</span>}
+                              </td>
+                              <td style={{ padding: "1rem", textAlign: "center" }}>
+                                {p.status === "exposed" && (
+                                  <button onClick={() => handleAutoRegister(p.path, p.methods)} style={{ padding: "5px 10px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>Register in Kong</button>
+                                )}
+                                {p.status === "registered" && (
+                                  <button onClick={() => {
+                                    setPluginScope("route");
+                                    setPluginRouteId(p.kong_route_id);
+                                    setSecuritySubTab("marketplace");
+                                  }} style={{ padding: "5px 10px", background: "#fbbf24", color: "#1f2937", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>+ Add Plugin</button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1239,8 +1355,10 @@ const AdminPortal = ({ token, onClose }) => {
                               const defaults = {};
                               plugin.fields.forEach(f => { defaults[f.key] = f.default; });
                               setPluginFormData(defaults);
-                              setPluginScope("global");
-                              setPluginRouteId("");
+                              if (pluginScope !== "route") {
+                                setPluginScope("global");
+                                setPluginRouteId("");
+                              }
                               setError(null);
                               setShowPluginModal(true);
                             }} style={{

@@ -9,7 +9,7 @@ URL is overridable via the KONG_ADMIN_URL env var.
 """
 
 import os
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 import httpx
 import logging
 from pydantic import BaseModel
@@ -44,6 +44,13 @@ class PluginUpdateRequest(BaseModel):
     """Schema to update an existing plugin."""
     config: Optional[Dict[str, Any]] = None
     enabled: Optional[bool] = None
+
+class AutoRegisterRequest(BaseModel):
+    """Schema for one-click route registration."""
+    path: str
+    methods: List[str]
+    name: Optional[str] = None
+    service_id: Optional[str] = None
 
 
 # ──────────────────────────────────────────────
@@ -308,3 +315,149 @@ async def get_plugin_catalog():
     
     return catalog
 
+# ──────────────────────────────────────────────
+# Intelligent Route Discovery Endpoints
+# ──────────────────────────────────────────────
+
+@router.get("/route-discovery")
+async def route_discovery(request: Request):
+    """Scan FastAPI schema and cross-reference with Kong Gateway routes."""
+    # 1. Introspect FastAPI
+    openapi_schema = request.app.openapi()
+    fastapi_paths = []
+    for path, path_item in openapi_schema.get("paths", {}).items():
+        methods = [method.upper() for method in path_item.keys()]
+        tags = []
+        for method_obj in path_item.values():
+            if "tags" in method_obj:
+                tags.extend(method_obj["tags"])
+        fastapi_paths.append({
+            "path": path,
+            "methods": methods,
+            "tags": list(set(tags))
+        })
+        
+    # 2. Fetch Kong Routes
+    kong_routes_resp = await _kong_request("GET", "/routes")
+    kong_routes = kong_routes_resp.get("data", [])
+    
+    # Fetch all plugins globally and filter by route.id
+    kong_plugins_resp = await _kong_request("GET", "/plugins")
+    kong_plugins = kong_plugins_resp.get("data", [])
+    
+    plugins_by_route = {}
+    for p in kong_plugins:
+        if "route" in p and p["route"] is not None and "id" in p["route"]:
+            rid = p["route"]["id"]
+            if rid not in plugins_by_route:
+                plugins_by_route[rid] = []
+            plugins_by_route[rid].append(p)
+            
+    # Helper to check if a path matches a Kong route
+    def find_kong_route(api_path: str):
+        for kr in kong_routes:
+            for kp in kr.get("paths", []):
+                # Match exact or prefix
+                if api_path.startswith(kp) or api_path == kp:
+                    return kr
+        return None
+
+    # 3. Cross-reference
+    results = []
+    matched_kong_routes = set()
+    
+    for fp in fastapi_paths:
+        kr = find_kong_route(fp["path"])
+        if kr:
+            matched_kong_routes.add(kr["id"])
+            route_plugins = plugins_by_route.get(kr["id"], [])
+            
+            # Determine status based on presence of plugins
+            status = "protected" if route_plugins else "registered"
+            
+            results.append({
+                "path": fp["path"],
+                "methods": fp["methods"],
+                "tags": fp["tags"],
+                "status": status,
+                "kong_route": kr.get("name", kr["id"]),
+                "kong_route_id": kr["id"],
+                "plugins": [p["name"] for p in route_plugins]
+            })
+        else:
+            status = "exposed"
+            results.append({
+                "path": fp["path"],
+                "methods": fp["methods"],
+                "tags": fp["tags"],
+                "status": status,
+                "kong_route": None,
+                "kong_route_id": None,
+                "plugins": []
+            })
+            
+    # Kong-only routes
+    kong_only = []
+    for kr in kong_routes:
+        if kr["id"] not in matched_kong_routes:
+            route_plugins = plugins_by_route.get(kr["id"], [])
+            kong_only.append({
+                "id": kr["id"],
+                "name": kr.get("name", kr["id"]),
+                "paths": kr.get("paths", []),
+                "plugins": [p["name"] for p in route_plugins]
+            })
+            
+    coverage = 0
+    if len(results) > 0:
+        protected_count = sum(1 for r in results if r["status"] in ["protected", "registered"])
+        coverage = int((protected_count / len(results)) * 100)
+
+    # Sort results to have exposed routes at the top, then registered, then protected
+    status_order = {"exposed": 0, "registered": 1, "protected": 2}
+    results.sort(key=lambda x: (status_order.get(x["status"], 99), x["path"]))
+
+    return {
+        "total_backend_paths": len(results),
+        "total_kong_routes": len(kong_routes),
+        "coverage_percent": coverage,
+        "paths": results,
+        "kong_only_routes": kong_only
+    }
+
+@router.post("/auto-register")
+async def auto_register(req: AutoRegisterRequest):
+    """Automatically register an exposed path in Kong."""
+    services_resp = await _kong_request("GET", "/services")
+    services = services_resp.get("data", [])
+    
+    target_service_id = req.service_id
+    if not target_service_id:
+        # Try to find a service that looks like the backend
+        for s in services:
+            if "fastapi" in s.get("name", "").lower():
+                target_service_id = s["id"]
+                break
+                
+    if not target_service_id and services:
+        target_service_id = services[0]["id"] # Fallback
+        
+    if not target_service_id:
+        raise HTTPException(status_code=400, detail="No Kong services found to bind the route to.")
+        
+    route_name = req.name
+    if not route_name:
+        # Generate a name from the path: e.g. /api/admin/metrics -> api-admin-metrics
+        clean_path = req.path.strip("/").replace("/", "-")
+        route_name = f"auto-{clean_path}" if clean_path else "auto-root"
+        
+    payload = {
+        "name": route_name,
+        "paths": [req.path],
+        "methods": req.methods,
+        "service": {"id": target_service_id},
+        "strip_path": False
+    }
+    
+    result = await _kong_request("POST", "/routes", json_data=payload)
+    return {"status": "success", "message": f"Route {route_name} registered.", "data": result}
