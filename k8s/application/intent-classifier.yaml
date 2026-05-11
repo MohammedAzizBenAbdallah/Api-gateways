@@ -40,6 +40,9 @@ data:
   HF_ZERO_SHOT_MODEL: "typeform/distilbert-base-uncased-mnli"
   INTENT_CLASSIFIER_CACHE_TTL_SECONDS: "3600"
   INTENT_CLASSIFIER_LRU_MAX: "10000"
+  LLM_BASE_URL: "http://host.docker.internal:11434/api/chat"
+  LLM_MODEL: "llama3.2"
+  LLM_TIMEOUT_SECONDS: "45"
 ---
 apiVersion: apps/v1
 kind: Deployment

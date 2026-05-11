@@ -12,7 +12,10 @@ spec:
     spec:
       containers:
         - name: deck
-          image: kong/deck
+          image: kong/deck@sha256:c9518f5fb96445ff349f6f91b038b15676bf871639f65173eb55ab54f1b329ba
+          # Local workflow tradeoff: avoid registry pull flakiness in dev.
+          # IfNotPresent favors local resiliency over automatic image freshness.
+          imagePullPolicy: IfNotPresent
           command: ["deck", "gateway", "sync", "/gateway/kong_final.yaml"]
           env:
             - name: DECK_KONG_ADDR

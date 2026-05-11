@@ -139,6 +139,13 @@ make hpa
 make teardown
 ```
 
+Keycloak login for the app now goes through Kong at `http://localhost/auth` (no direct `localhost:8080` port-forward required for normal app auth flow).  
+If you need direct Keycloak admin/service access, use:
+
+```bash
+kubectl port-forward -n ai-application svc/keycloak 8080:8080
+```
+
 ---
 
 ## TLS Model (Current)

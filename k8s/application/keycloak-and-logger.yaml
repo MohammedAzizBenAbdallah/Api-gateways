@@ -56,6 +56,10 @@ spec:
               value: "false"
             - name: KC_HTTP_ENABLED
               value: "true"
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            - name: KC_HOSTNAME
+              value: "http://localhost/auth"
           resources:
             requests:
               memory: "512Mi"

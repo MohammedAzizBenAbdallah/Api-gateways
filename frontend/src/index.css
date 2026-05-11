@@ -176,11 +176,121 @@ body {
   border-top-left-radius: 4px;
 }
 
+.chat-markdown {
+  white-space: normal;
+}
+
+.chat-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown p,
+.chat-markdown ul,
+.chat-markdown ol,
+.chat-markdown pre,
+.chat-markdown table,
+.chat-markdown blockquote {
+  margin: 0.6rem 0;
+}
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  margin: 0.75rem 0 0.4rem;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.chat-markdown h1 {
+  font-size: 1.2rem;
+}
+
+.chat-markdown h2 {
+  font-size: 1.1rem;
+}
+
+.chat-markdown h3,
+.chat-markdown h4 {
+  font-size: 1rem;
+}
+
+.chat-markdown ul,
+.chat-markdown ol {
+  padding-left: 1.25rem;
+}
+
+.chat-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.86em;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+}
+
+.chat-markdown pre {
+  overflow-x: auto;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--glass-border);
+}
+
+.chat-markdown pre code {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.chat-markdown blockquote {
+  border-left: 3px solid var(--accent-primary);
+  padding-left: 0.75rem;
+  opacity: 0.9;
+}
+
+.chat-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.chat-markdown th,
+.chat-markdown td {
+  border: 1px solid var(--glass-border);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.chat-markdown th {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .timestamp {
   font-size: 0.7rem;
   color: var(--text-dim);
   margin-top: 0.4rem;
   opacity: 0.6;
+}
+
+.intent-classifier-bubble {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.intent-classifier-chip {
+  font-size: 0.66rem;
+  color: var(--text-dim);
+  border: 1px solid var(--glass-border);
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
 }
 
 .message-wrapper.user .timestamp {
@@ -480,4 +590,16 @@ body.light-theme .cancelled-label {
   color: #b45309;
   background: rgba(251, 191, 36, 0.12);
   border-color: rgba(217, 119, 6, 0.25);
+}
+
+body.light-theme .chat-markdown code {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+body.light-theme .chat-markdown pre {
+  background: rgba(148, 163, 184, 0.16);
+}
+
+body.light-theme .chat-markdown th {
+  background: rgba(148, 163, 184, 0.18);
 }

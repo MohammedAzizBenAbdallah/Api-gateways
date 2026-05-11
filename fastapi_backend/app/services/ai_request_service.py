@@ -59,7 +59,12 @@ class _PreFlightResult:
 
     request_id: str
     tenant_id: str
+    provided_intent: str
     intent_name: str
+    intent_mode: str
+    intent_confidence: float | None
+    intent_source: str | None
+    intent_taxonomy_version: str | None
     resolved_service_id: str
     service: Any
     final_sensitivity: Any  # SensitivityLevel
@@ -253,7 +258,21 @@ class AIRequestService:
         # ── Intent classification (auto) or shadow logging ──
         classify_text = self._messages_to_classify_text(body)
         intent_name = raw_intent
+        intent_mode = "manual"
+        intent_confidence: float | None = None
+        intent_source: str | None = None
+        intent_taxonomy_version: str | None = None
+        logger.info(
+            "Intent classification start request_id=%s tenant_id=%s provided_intent=%s mode=%s classifier_enabled=%s text_len=%s",
+            request_id,
+            tenant_id,
+            raw_intent,
+            "auto" if raw_intent == settings.intent_auto_token else "manual",
+            self._intent_classifier.is_configured,
+            len(classify_text),
+        )
         if raw_intent == settings.intent_auto_token:
+            intent_mode = "auto"
             if classify_text and self._intent_classifier.is_configured:
                 decision = await self._intent_classifier.classify(
                     text=classify_text,
@@ -261,16 +280,29 @@ class AIRequestService:
                     environment=environment,
                 )
                 intent_name = decision.intent_label
+                intent_confidence = decision.confidence
+                intent_source = decision.source
+                intent_taxonomy_version = decision.taxonomy_version
                 logger.info(
-                    "Intent auto-classified: label=%s confidence=%s source=%s",
+                    "Intent classification decision request_id=%s tenant_id=%s mode=%s provided_intent=%s predicted_intent=%s confidence=%s source=%s",
+                    request_id,
+                    tenant_id,
+                    intent_mode,
+                    raw_intent,
                     decision.intent_label,
                     decision.confidence,
                     decision.source,
                 )
             else:
                 intent_name = UNCLASSIFIED_LABEL
+                intent_mode = "fallback"
+                fallback_reason = "empty_text" if not classify_text else "classifier_unavailable"
                 logger.info(
-                    "Intent auto requested but classifier unavailable or empty text; using %s",
+                    "Intent classification fallback request_id=%s tenant_id=%s mode=%s reason=%s resolved_intent=%s",
+                    request_id,
+                    tenant_id,
+                    intent_mode,
+                    fallback_reason,
                     UNCLASSIFIED_LABEL,
                 )
         elif settings.intent_classifier_shadow and self._intent_classifier.is_configured and classify_text:
@@ -279,15 +311,32 @@ class AIRequestService:
                 tenant_id=tenant_id,
                 environment=environment,
             )
+            intent_mode = "shadow"
+            intent_confidence = decision.confidence
+            intent_source = decision.source
+            intent_taxonomy_version = decision.taxonomy_version
             logger.info(
-                "Intent shadow classify: provided=%s predicted=%s confidence=%s",
+                "Intent classification decision request_id=%s tenant_id=%s mode=%s provided_intent=%s predicted_intent=%s confidence=%s source=%s",
+                request_id,
+                tenant_id,
+                intent_mode,
                 raw_intent,
                 decision.intent_label,
                 decision.confidence,
+                decision.source,
             )
 
         # ── Intent resolution ──
         resolved_service_id = self._intent_cache_service.resolve_intent(intent_name)
+        logger.info(
+            "Intent resolution request_id=%s tenant_id=%s provided_intent=%s resolved_intent=%s resolved_service=%s mode=%s",
+            request_id,
+            tenant_id,
+            raw_intent,
+            intent_name,
+            resolved_service_id,
+            intent_mode,
+        )
 
         # ── Tenant permission check ──
         is_allowed = await check_tenant_service_permission_and_audit(
@@ -410,7 +459,12 @@ class AIRequestService:
         return _PreFlightResult(
             request_id=request_id,
             tenant_id=tenant_id,
+            provided_intent=raw_intent,
             intent_name=intent_name,
+            intent_mode=intent_mode,
+            intent_confidence=intent_confidence,
+            intent_source=intent_source,
+            intent_taxonomy_version=intent_taxonomy_version,
             resolved_service_id=resolved_service_id,
             service=service,
             final_sensitivity=final_sensitivity,
@@ -500,6 +554,11 @@ class AIRequestService:
         detected_pii_types = pf.detected_pii_types
         pii_count = pf.pii_count
         messages = pf.messages
+        provided_intent = pf.provided_intent
+        intent_mode = pf.intent_mode
+        intent_confidence = pf.intent_confidence
+        intent_source = pf.intent_source
+        intent_taxonomy_version = pf.intent_taxonomy_version
 
         # ── Initialization Pulse ──
         # Send an immediate empty packet to trigger frontend typing dots.
@@ -571,7 +630,11 @@ class AIRequestService:
                         # Fetch latest quota status for push
                         current_quota = await self._quota_service.get_quota_status(tenant_id)
 
-                        # Flush remaining carry buffer with redaction
+                        # SSE contract:
+                        # 1) data frames can carry token text with done=false
+                        # 2) final frame (done=true) is metadata-only with token=""
+                        # This prevents clients from having to special-case done=true text.
+                        # Flush remaining carry buffer with redaction first.
                         final_token = carry_buffer + (token or "")
                         if final_token:
                             final_redacted = self._output_guard.redact(final_token)
@@ -588,16 +651,22 @@ class AIRequestService:
                                         redacted_types=final_redacted.redacted_types,
                                         redaction_count=final_redacted.redaction_count,
                                     )
+                            yield "data: " + json.dumps({"token": final_token, "done": False}) + "\n\n"
 
                         yield (
                             "data: "
                             + json.dumps(
                                 {
-                                    "token": final_token,
+                                    "token": "",
                                     "done": True,
                                     "request_id": request_id,
                                     "resolved_service": resolved_service_id,
                                     "intent": intent_name,
+                                    "provided_intent": provided_intent,
+                                    "intent_mode": intent_mode,
+                                    "intent_confidence": intent_confidence,
+                                    "intent_source": intent_source,
+                                    "intent_taxonomy_version": intent_taxonomy_version,
                                     "resolved_sensitivity": final_sensitivity.value,
                                     "detected_pii_types": detected_pii_types,
                                     "pii_count": pii_count,
@@ -722,6 +791,11 @@ class AIRequestService:
             "data": {
                 "request_id": pf.request_id,
                 "intent": pf.intent_name,
+                "provided_intent": pf.provided_intent,
+                "intent_mode": pf.intent_mode,
+                "intent_confidence": pf.intent_confidence,
+                "intent_source": pf.intent_source,
+                "intent_taxonomy_version": pf.intent_taxonomy_version,
                 "resolved_service": pf.resolved_service_id,
                 "response": provider_data,
                 "pii_count": pf.pii_count,

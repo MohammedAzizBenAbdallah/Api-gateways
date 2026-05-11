@@ -58,7 +58,13 @@ spec:
         # Run migrations before the CP starts
         - name: kong-migrations
           image: kong:3.9.1
-          command: ["kong", "migrations", "bootstrap"]
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              kong migrations bootstrap || true
+              kong migrations up
+              kong migrations finish
           envFrom:
             - configMapRef:
                 name: kong-cp-config

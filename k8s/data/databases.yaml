@@ -228,14 +228,14 @@ spec:
           image: redis:7-alpine
           ports:
             - containerPort: 6379
-          args: ["--save", "60", "1", "--loglevel", "warning"]
+          args: ["--save", "60", "1", "--loglevel", "warning", "--maxmemory", "192mb", "--maxmemory-policy", "allkeys-lru"]
           resources:
             requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
               memory: "128Mi"
               cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
           livenessProbe:
             exec:
               command: ["redis-cli", "ping"]

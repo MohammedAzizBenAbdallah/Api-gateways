@@ -315,7 +315,7 @@ spec:
       ports:
         - port: 3010
 ---
-# ── RULE 14: intent-classifier egress (single policy: Redis + DNS + HTTPS) ───
+# ── RULE 14: intent-classifier egress (Redis + DNS + HTTPS + host Ollama) ────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -353,6 +353,8 @@ spec:
       ports:
         - port: 443
           protocol: TCP
+        - port: 11434
+          protocol: TCP
 ---
 # ── RULE 15: Prometheus can scrape intent-classifier metrics ────────────────
 apiVersion: networking.k8s.io/v1
@@ -378,3 +380,28 @@ spec:
               app: prometheus
       ports:
         - port: 3010
+
+---
+# allow kong-dp to reach redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: 
+  name: allow-kong-dp-to-redis
+  namespace: ai-data
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-gateway
+          podSelector:
+            matchLabels:
+              app: kong-dp
+      ports:
+        - port: 6379
+          protocol: TCP

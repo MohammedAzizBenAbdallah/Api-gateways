@@ -19,6 +19,7 @@ class ClassifierDecision:
     intent_label: str
     confidence: float
     source: str
+    taxonomy_version: str | None = None
 
 
 class IntentClassifierClient:
@@ -46,6 +47,7 @@ class IntentClassifierClient:
     ) -> ClassifierDecision:
         """Call classifier; on any failure return unclassified with confidence 0."""
         if not self.is_configured:
+            logger.info("Intent classifier bypassed: disabled_or_unconfigured")
             return ClassifierDecision(
                 intent_label=UNCLASSIFIED_LABEL,
                 confidence=0.0,
@@ -58,13 +60,19 @@ class IntentClassifierClient:
             payload["tenant_id"] = tenant_id
         if environment:
             payload["environment"] = environment
+        logger.info(
+            "Intent classifier request start tenant_id=%s environment=%s text_len=%s",
+            tenant_id,
+            environment,
+            len(text),
+        )
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.post(url, json=payload)
                 resp.raise_for_status()
                 data = resp.json()
         except Exception as exc:
-            logger.warning("Intent classifier request failed: %s", exc)
+            logger.warning("Intent classifier request failed; reason=http_error error=%s", exc)
             return ClassifierDecision(
                 intent_label=UNCLASSIFIED_LABEL,
                 confidence=0.0,
@@ -74,7 +82,19 @@ class IntentClassifierClient:
         label = str(data.get("intent_label", UNCLASSIFIED_LABEL))
         conf = float(data.get("confidence", 0.0))
         src = str(data.get("source", "model"))
+        taxonomy_version = data.get("taxonomy_version")
 
         if label not in taxonomy.routable_labels:
+            logger.warning(
+                "Intent classifier label not routable; predicted=%s fallback=%s",
+                label,
+                UNCLASSIFIED_LABEL,
+            )
             label = UNCLASSIFIED_LABEL
-        return ClassifierDecision(intent_label=label, confidence=conf, source=src)
+            src = "fallback"
+        return ClassifierDecision(
+            intent_label=label,
+            confidence=conf,
+            source=src,
+            taxonomy_version=str(taxonomy_version) if taxonomy_version is not None else None,
+        )

@@ -36,7 +36,7 @@ data:
   KONG_ADMIN_URL: "http://kong-cp.ai-gateway.svc.cluster.local:8001"
   ENVIRONMENT: "production"
   INTENT_CLASSIFIER_URL: "http://intent-classifier.ai-application.svc.cluster.local:3010"
-  INTENT_CLASSIFIER_TIMEOUT_SECONDS: "0.35"
+  INTENT_CLASSIFIER_TIMEOUT_SECONDS: "50"
   INTENT_CLASSIFIER_ENABLED: "true"
   INTENT_CLASSIFIER_SHADOW: "false"
   INTENT_TAXONOMY_PATH: "/etc/intent-taxonomy/intent_labels_v1.yaml"

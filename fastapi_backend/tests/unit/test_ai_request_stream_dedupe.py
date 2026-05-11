@@ -69,7 +69,12 @@ def _pre_flight_result() -> _PreFlightResult:
     return _PreFlightResult(
         request_id="req-test-1",
         tenant_id="tenant-a",
+        provided_intent="auto",
         intent_name="general_chat",
+        intent_mode="auto",
+        intent_confidence=0.93,
+        intent_source="model",
+        intent_taxonomy_version="1",
         resolved_service_id="ollama-llama3",
         service=_FakeAIService(),
         final_sensitivity=SensitivityLevel.LOW,
@@ -116,6 +121,16 @@ def _collect_tokens(events: List[str]) -> List[str]:
             if token:
                 tokens.append(token)
     return tokens
+
+
+def _collect_payloads(events: List[str]) -> List[Dict[str, Any]]:
+    payloads: List[Dict[str, Any]] = []
+    for event in events:
+        for line in event.split("\n"):
+            if not line.startswith("data: "):
+                continue
+            payloads.append(json.loads(line[len("data: "):]))
+    return payloads
 
 
 async def _consume(service: AIRequestService) -> List[str]:
@@ -214,5 +229,40 @@ def test_submit_stream_final_event_is_done(
     last_payload = json.loads(last_data_lines[-1][len("data: "):])
 
     assert last_payload.get("done") is True
+    assert last_payload.get("token") == ""
     assert last_payload.get("request_id") == "req-test-1"
     assert last_payload.get("intent") == "general_chat"
+    assert last_payload.get("provided_intent") == "auto"
+    assert last_payload.get("intent_mode") == "auto"
+    assert last_payload.get("intent_confidence") == 0.93
+    assert last_payload.get("intent_source") == "model"
+    assert last_payload.get("intent_taxonomy_version") == "1"
+
+
+def test_submit_stream_emits_tail_before_done_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-empty final tail must be emitted before the terminal done=true frame."""
+    chunks: List[Dict[str, Any]] = [
+        {"token": "x" * 35, "done": False},
+        {"token": "", "done": True, "usage": {}},
+    ]
+
+    _patch_ollama(monkeypatch, chunks)
+    service = _make_service()
+    _patch_service(service, _pre_flight_result())
+
+    events = asyncio.run(_consume(service))
+    payloads = _collect_payloads(events)
+
+    done_payload = payloads[-1]
+    assert done_payload.get("done") is True
+    assert done_payload.get("token") == ""
+
+    # At least one prior non-done frame should carry redacted tail text.
+    assert any(
+        isinstance(payload.get("token"), str)
+        and payload.get("token")
+        and payload.get("done") is False
+        for payload in payloads[:-1]
+    )

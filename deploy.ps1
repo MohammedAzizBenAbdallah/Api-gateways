@@ -36,12 +36,37 @@ function Ensure-Path {
 function Build-LocalImage {
     param(
         [string]$ImageName,
-        [string]$DockerfileDir
+        [string]$DockerfileDir,
+        [string]$DockerfilePath = ""
     )
-    Write-Host "  Building image: $ImageName" -ForegroundColor Gray
-    docker build -t $ImageName $DockerfileDir
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to build image: $ImageName"
+    $maxAttempts = 3
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        Write-Host "  Building image: $ImageName (attempt $attempt/$maxAttempts)" -ForegroundColor Gray
+        $dockerArgs = @("build", "-t", $ImageName)
+        if ($DockerfilePath) {
+            $dockerArgs += @("-f", $DockerfilePath)
+        }
+        $dockerArgs += $DockerfileDir
+        $buildOutput = & docker @dockerArgs 2>&1
+        $buildText = ($buildOutput | Out-String)
+        if ($buildText) {
+            Write-Host $buildText
+        }
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -eq 0) {
+            return
+        }
+
+        $isTlsHandshakeTimeout = $buildText -match "TLS handshake timeout"
+        $isRegistryMetadataFailure = $buildText -match "failed to resolve source metadata"
+
+        $isRetryable = $isTlsHandshakeTimeout -or $isRegistryMetadataFailure
+        if (-not $isRetryable -or $attempt -eq $maxAttempts) {
+            throw "Failed to build image: $ImageName"
+        }
+
+        Write-Host "    Retrying build due to transient registry/network error..." -ForegroundColor Yellow
     }
 }
 
@@ -64,9 +89,11 @@ Ensure-Path "monitoring\prometheus.yml"
 Ensure-Path "monitoring\grafana\dashboards"
 Ensure-Path "monitoring\grafana\provisioning\dashboards"
 Ensure-Path "monitoring\grafana\provisioning\datasources"
+Ensure-Path "intent_classifier_service\Dockerfile"
 
 Write-Host "  Checking local images required by imagePullPolicy=Never..." -ForegroundColor Gray
 Build-LocalImage "api-gateways-backend:latest" "fastapi_backend"
+Build-LocalImage "api-gateways-intent-classifier:latest" "." "intent_classifier_service/Dockerfile"
 Build-LocalImage "api-gateways-frontend:latest" "frontend"
 Build-LocalImage "api-gateways-kong-logger:latest" "kong-logger"
 
@@ -117,26 +144,52 @@ if (-not $certExists) {
 # ── Step 6: Deploy everything via Kustomize ───────────────────────────────
 Write-Host ""
 Write-Host "[6/7] Deploying all services..." -ForegroundColor Yellow
-kubectl apply -k k8s/
+$applyOutput = kubectl apply -k k8s/ 2>&1
+$applyText = ($applyOutput | Out-String)
+if ($applyText) {
+    Write-Host $applyText
+}
+$applyExitCode = $LASTEXITCODE
+if ($applyExitCode -ne 0) {
+    throw "Step [6/7] failed: kubectl apply -k k8s/ returned exit code $applyExitCode"
+}
 
 # ── Wait for services ─────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "Waiting for databases..." -ForegroundColor Gray
-kubectl wait --for=condition=ready pod -l app=platform-db -n ai-data --timeout=120s 2>$null
-kubectl wait --for=condition=ready pod -l app=kong-db -n ai-data --timeout=120s 2>$null
+kubectl wait --for=condition=ready pod -l app=platform-db -n ai-data --timeout=180s
+if ($LASTEXITCODE -ne 0) { throw "platform-db pods did not become ready in time." }
+kubectl wait --for=condition=ready pod -l app=kong-db -n ai-data --timeout=180s
+if ($LASTEXITCODE -ne 0) { throw "kong-db pods did not become ready in time." }
 
 Write-Host "Waiting for application layer..." -ForegroundColor Gray
-kubectl wait --for=condition=ready pod -l app=fastapi -n ai-application --timeout=180s 2>$null
-kubectl wait --for=condition=ready pod -l app=opa -n ai-application --timeout=60s 2>$null
+kubectl wait --for=condition=ready pod -l app=fastapi -n ai-application --timeout=240s
+if ($LASTEXITCODE -ne 0) { throw "fastapi pods did not become ready in time." }
+kubectl wait --for=condition=ready pod -l app=intent-classifier -n ai-application --timeout=240s
+if ($LASTEXITCODE -ne 0) { throw "intent-classifier pods did not become ready in time." }
+kubectl wait --for=condition=ready pod -l app=opa -n ai-application --timeout=120s
+if ($LASTEXITCODE -ne 0) { throw "opa pods did not become ready in time." }
 
 Write-Host "Waiting for gateway..." -ForegroundColor Gray
-kubectl wait --for=condition=ready pod -l app=kong-cp -n ai-gateway --timeout=120s 2>$null
+kubectl wait --for=condition=ready pod -l app=kong-cp -n ai-gateway --timeout=240s
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  Kong CP did not become ready; restarting control plane once..." -ForegroundColor Yellow
+    kubectl rollout restart deployment/kong-cp -n ai-gateway
+    kubectl rollout status deployment/kong-cp -n ai-gateway --timeout=240s
+    if ($LASTEXITCODE -ne 0) { throw "kong-cp failed to become ready after restart." }
+}
 
 # ── Step 7: Sync Kong Configuration using Deck ────────────────────────────
 Write-Host ""
 Write-Host "[7/7] Synchronizing Kong Configuration..." -ForegroundColor Yellow
 kubectl apply -f k8s/gateway/kong-deck-sync.yaml
-kubectl wait --for=condition=complete job/kong-deck-sync -n ai-gateway --timeout=60s 2>$null
+if ($LASTEXITCODE -ne 0) { throw "Failed to create kong-deck-sync job." }
+kubectl wait --for=condition=complete job/kong-deck-sync -n ai-gateway --timeout=180s
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  kong-deck-sync failed; dumping job logs..." -ForegroundColor Red
+    kubectl logs job/kong-deck-sync -n ai-gateway --tail=200
+    throw "kong-deck-sync job did not complete successfully."
+}
 
 # ── Final Status ──────────────────────────────────────────────────────────
 Write-Host ""

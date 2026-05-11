@@ -4,7 +4,24 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: [
+      "axios",
+      "keycloak-js",
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "react-markdown",
+      "remark-gfm",
+      "styled-components",
+    ],
+    noDiscovery: true,
+    holdUntilCrawlEnd: false,
+  },
   server: {
+    warmup: {
+      clientFiles: ["./src/**/*.jsx", "./src/**/*.tsx", "./src/main.jsx"],
+    },
     proxy: {
       "/api": {
         target: "http://kong-dp:80",

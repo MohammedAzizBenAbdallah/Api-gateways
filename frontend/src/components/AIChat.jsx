@@ -1,10 +1,18 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import useAuth from "../hooks/useAuth";
 import useIntent from "../hooks/useIntent";
 import useMessageGuard from "../hooks/useMessageGuard";
 import mapIntents from "../../services/mapIntents";
 import QuotaStatus from "./QuotaStatus";
 import MessageGuardModal from "./MessageGuardModal";
+import { shouldAppendToken } from "../utils/streaming";
+import {
+  AUTO_INTENT_OPTION,
+  formatIntentConfidence,
+  hasIntentClassificationDetails,
+} from "../utils/intentClassification";
 
 // ── Blinking cursor keyframe injected once at module level ────────────────
 const CURSOR_STYLE = `
@@ -73,6 +81,7 @@ const AIChat = ({
   // ── Intent definitions ────────────────────────────────────────────────────
   const { intents } = useIntent();
   const INTENTS = mapIntents(intents);
+  const INTENT_OPTIONS = [AUTO_INTENT_OPTION, ...INTENTS];
   // ── Sensitivity levels ───────────────────────────────────────────────────
   const SENSITIVITY_LEVELS = [
     { value: "LOW", label: "🟢 Low", color: "#4ade80" },
@@ -84,10 +93,10 @@ const AIChat = ({
 
   // Update selectedIntent when INTENTS are loaded
   useEffect(() => {
-    if (INTENTS.length > 0 && !selectedIntent) {
-      setSelectedIntent(INTENTS[0].value);
+    if (INTENT_OPTIONS.length > 0 && !selectedIntent) {
+      setSelectedIntent(INTENT_OPTIONS[0].value);
     }
-  }, [INTENTS, selectedIntent, intents]);
+  }, [INTENT_OPTIONS, selectedIntent, intents]);
   const [selectedSensitivity, setSelectedSensitivity] = useState("LOW");
   const [resolvedService, setResolvedService] = useState(null);
 
@@ -181,7 +190,7 @@ const AIChat = ({
           Accept: "text/event-stream",
         },
         body: JSON.stringify({
-          intent: selectedIntent || "general_chat",
+          intent: selectedIntent || AUTO_INTENT_OPTION.value,
           payload: {
             messages: conversationHistory.map((m) => ({
               role: m.role,
@@ -308,7 +317,7 @@ const AIChat = ({
           }
 
           // ── Append token to the last message ────────────────────────
-          if (data.token && !data.done) {
+          if (shouldAppendToken(data)) {
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1] = {
@@ -332,6 +341,15 @@ const AIChat = ({
                 isStreaming: false,
                 requestId: data.request_id || null,
                 resolvedService: data.resolved_service || null,
+                resolvedIntent: data.intent || null,
+                providedIntent: data.provided_intent || null,
+                intentMode: data.intent_mode || null,
+                intentSource: data.intent_source || null,
+                intentTaxonomyVersion: data.intent_taxonomy_version || null,
+                intentConfidence:
+                  typeof data.intent_confidence === "number"
+                    ? data.intent_confidence
+                    : null,
                 resolvedSensitivity: data.resolved_sensitivity || null,
                 detectedPiiTypes: Array.isArray(data.detected_pii_types)
                   ? data.detected_pii_types
@@ -412,7 +430,7 @@ const AIChat = ({
 
   const isActive = isLoading || messages.some((m) => m.isStreaming);
   const selectedIntentLabel =
-    INTENTS.find((i) => i.value === selectedIntent)?.label ?? selectedIntent;
+    INTENT_OPTIONS.find((i) => i.value === selectedIntent)?.label ?? selectedIntent;
 
   return (<>
     <div className="chat-window">
@@ -622,7 +640,15 @@ const AIChat = ({
                   </div>
                 ) : (
                   <>
-                    <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
+                    {m.isStreaming ? (
+                      <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
+                    ) : (
+                      <div className="chat-markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                     {m.isStreaming && (
                       <span className="ai-cursor" aria-hidden="true" />
                     )}
@@ -743,6 +769,33 @@ const AIChat = ({
                   Request ID: {m.requestId.slice(0, 8)}-…
                 </div>
               )}
+              {m.role === "assistant" && hasIntentClassificationDetails(m) && (
+                <div className="intent-classifier-bubble">
+                  {m.resolvedIntent && (
+                    <span className="intent-classifier-chip">
+                      intent: {m.resolvedIntent}
+                    </span>
+                  )}
+                  {m.intentMode && (
+                    <span className="intent-classifier-chip">mode: {m.intentMode}</span>
+                  )}
+                  {m.intentSource && (
+                    <span className="intent-classifier-chip">
+                      source: {m.intentSource}
+                    </span>
+                  )}
+                  {formatIntentConfidence(m.intentConfidence) && (
+                    <span className="intent-classifier-chip">
+                      confidence: {formatIntentConfidence(m.intentConfidence)}
+                    </span>
+                  )}
+                  {m.intentTaxonomyVersion && (
+                    <span className="intent-classifier-chip">
+                      taxonomy: {m.intentTaxonomyVersion}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className="timestamp">{m.timestamp}</div>
             </div>
@@ -818,8 +871,8 @@ const AIChat = ({
               }}
               disabled={isActive}
             >
-              {INTENTS ? (
-                INTENTS.map((intent) => (
+              {INTENT_OPTIONS ? (
+                INTENT_OPTIONS.filter((intent) => intent.value !== "unclassified").map((intent) => (
                   <option key={intent.value} value={intent.value}>
                     {intent.label}
                   </option>
