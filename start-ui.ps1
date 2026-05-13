@@ -10,6 +10,7 @@ Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command 
 
 # Forward Kong Manager (Admin UI)
 Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command title 'Kong Manager (8002)'; kubectl port-forward -n ai-gateway svc/kong-cp 8002:8002"
+Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command title 'Kong Manager (8002)'; kubectl port-forward -n ai-gateway svc/kong-cp 8001:8001"
 
 # Forward Grafana
 Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command title 'Grafana (3000)'; kubectl port-forward -n ai-monitoring svc/grafana 3000:3000"
@@ -23,6 +24,7 @@ Write-Host "------------------------------------------------------"
 Write-Host "🖥️  Frontend UI:    http://localhost:5173" -ForegroundColor Cyan
 Write-Host "🔐  Keycloak Login: http://localhost/auth" -ForegroundColor Cyan
 Write-Host "🦍  Kong Manager:   http://localhost:8002" -ForegroundColor Cyan
+Write-Host "🦍  Kong Manager services:   http://localhost:8001" -ForegroundColor Cyan
 Write-Host "📊  Grafana:        http://localhost:3000" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Optional admin direct access: kubectl port-forward -n ai-application svc/keycloak 8080:8080" -ForegroundColor Gray

@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from typing import List
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
+import pytest
+
+import app.services.content_inspector_service as content_inspector_module
 from app.schemas.ai_request import (
     AIRequestMetadata,
     AIRequestPayload,
@@ -17,36 +20,34 @@ from app.schemas.ai_request import (
 from app.services.content_inspector_service import ContentInspectorService
 
 
-@dataclass
-class FakeEnt:
-    label_: str
-    text: str
+@pytest.fixture(autouse=True)
+def _stub_presidio_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid Presidio/spaCy model downloads in CI; simulate ORGANIZATION for Microsoft."""
 
+    engine = MagicMock()
 
-class FakeDoc:
-    def __init__(self, ents: List[FakeEnt]) -> None:
-        self.ents = ents
+    def analyze(text: str, language: str = "en") -> list:
+        _ = language
+        entities: list = []
+        if "Microsoft" in text:
+            entities.append(SimpleNamespace(entity_type="ORGANIZATION"))
+        return entities
 
-
-class FakeNLP:
-    def __init__(self, ents: List[FakeEnt]) -> None:
-        self._ents = ents
-        self.called = False
-
-    def __call__(self, _text: str) -> FakeDoc:
-        self.called = True
-        return FakeDoc(self._ents)
+    engine.analyze.side_effect = analyze
+    monkeypatch.setattr(
+        content_inspector_module,
+        "_get_presidio_analyzer",
+        lambda: engine,
+    )
 
 
 class ExplodingNLP:
-    def __call__(self, _text: str) -> FakeDoc:  # type: ignore[name-defined]
-        raise AssertionError("spaCy nlp should not be called when sensitivity is already HIGH")
+    def __call__(self, _text: str) -> None:
+        raise AssertionError("nlp should not be used — Presidio + regex only")
 
 
 def test_clean_input_stays_low() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -55,32 +56,31 @@ def test_clean_input_stays_low() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.LOW
-    assert nlp.called is True
 
 
 def test_pii_upgrades_to_high() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[FakeEnt(label_="PERSON", text="John Smith")])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
-            messages=[MessageSchema(role="user", content="Contact John Smith")]
+            messages=[
+                MessageSchema(
+                    role="user",
+                    content="Contact John Smith at john.smith@example.com",
+                )
+            ]
         ),
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_already_high_does_not_call_nlp() -> None:
     service = ContentInspectorService()
-    nlp = ExplodingNLP()
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -89,14 +89,12 @@ def test_already_high_does_not_call_nlp() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.HIGH, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, ExplodingNLP()))
     assert resolved == SensitivityLevel.HIGH
 
 
 def test_email_regex_upgrades_to_high_even_without_spacy_ents() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -110,15 +108,12 @@ def test_email_regex_upgrades_to_high_even_without_spacy_ents() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
-def test_phone_number_not_detected_without_spacy_phone_ent() -> None:
+def test_phone_number_detected_by_regex() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -132,15 +127,12 @@ def test_phone_number_not_detected_without_spacy_phone_ent() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_ssn_like_pattern_detected_by_regex() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -154,15 +146,12 @@ def test_ssn_like_pattern_detected_by_regex() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_credit_card_like_pattern_detected_by_luhn() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -176,15 +165,12 @@ def test_credit_card_like_pattern_detected_by_luhn() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_org_entity_not_upgraded_by_default() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[FakeEnt(label_="ORG", text="Microsoft")])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -193,14 +179,12 @@ def test_org_entity_not_upgraded_by_default() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.LOW
-    assert nlp.called is True
 
 
 def test_org_entity_upgraded_in_prod_when_intent_allowed(monkeypatch) -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[FakeEnt(label_="ORG", text="Microsoft")])
     monkeypatch.setenv("PII_ALLOW_LOW_SIGNAL_INTENTS", "general_chat")
 
     body = AIRequestSchema(
@@ -211,16 +195,12 @@ def test_org_entity_upgraded_in_prod_when_intent_allowed(monkeypatch) -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="prod"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_iban_detected() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
-    # Example IBAN (DE89370400440532013000).
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -229,15 +209,12 @@ def test_iban_detected() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_address_detected_by_heuristics() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -246,16 +223,12 @@ def test_address_detected_by_heuristics() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_jwt_secret_detected() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
-    # Common sample JWT (three base64url segments).
     token = (
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
         "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4iLCJpYXQiOjE1MTYyMzkwMjJ9."
@@ -269,15 +242,12 @@ def test_jwt_secret_detected() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
 
 
 def test_api_key_detected_by_pattern() -> None:
     service = ContentInspectorService()
-    nlp = FakeNLP(ents=[])
-
     body = AIRequestSchema(
         intent="general_chat",
         payload=AIRequestPayload(
@@ -286,7 +256,5 @@ def test_api_key_detected_by_pattern() -> None:
         metadata=AIRequestMetadata(sensitivity=SensitivityLevel.LOW, environment="dev"),
     )
 
-    resolved = asyncio.run(service.resolve_sensitivity(body, nlp))
+    resolved = asyncio.run(service.resolve_sensitivity(body, object()))
     assert resolved == SensitivityLevel.HIGH
-    assert nlp.called is True
-

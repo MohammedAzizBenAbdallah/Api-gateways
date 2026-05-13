@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import urllib.parse
@@ -223,15 +224,23 @@ class AIRequestService:
         completed_at: Optional[datetime] = None,
         error_detail: Optional[str] = None,
     ) -> None:
-        async with self._session_factory() as session:
-            await session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
-            await update_ai_request_status(
-                session,
-                request_id=request_id,
-                status=status,
-                completed_at=completed_at,
-                error_detail=error_detail,
+        try:
+            async with self._session_factory() as session:
+                await session.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
+                await update_ai_request_status(
+                    session,
+                    request_id=request_id,
+                    status=status,
+                    completed_at=completed_at,
+                    error_detail=error_detail,
+                )
+        except Exception as exc:
+            logger.error(
+                "[AIRequestService] _update_status_in_new_session failed "
+                "(request=%s status=%s): %s",
+                request_id, status, exc,
             )
+            raise
 
     async def _run_pre_flight(
         self,
@@ -376,10 +385,30 @@ class AIRequestService:
             logger.exception("Failed to persist request record: %s", exc)
             raise ProviderError("Failed to persist request record")
 
-        # ── Content inspection (PII detection + sensitivity upgrade) ──
-        final_sensitivity, detected_pii_types, pii_count = (
-            await self._content_inspector_service.inspect_content(body, nlp)
-        )
+        # ── Build outbound messages (shared by parallel inspectors) ──
+        messages: List[Dict[str, str]] = [
+            {"role": m.role, "content": m.content} for m in body.payload.messages
+        ]
+
+        # ── Content inspection + prompt security in parallel (TaskGroup cancels siblings on failure) ──
+        try:
+            async with asyncio.TaskGroup() as tg:
+                inspect_task = tg.create_task(
+                    self._content_inspector_service.inspect_content(body, nlp)
+                )
+                tg.create_task(
+                    self._run_prompt_security_scan(
+                        request_id=request_id,
+                        tenant_id=tenant_id,
+                        messages=messages,
+                        pii_count=None,
+                        detected_pii_types=None,
+                    )
+                )
+        except* SecurityViolationError as eg:
+            raise eg.exceptions[0] from eg
+
+        final_sensitivity, detected_pii_types, pii_count = inspect_task.result()
         if final_sensitivity.value != body.metadata.sensitivity.value:
             logger.warning(
                 "Sensitivity upgraded %s → %s for request %s",
@@ -419,6 +448,30 @@ class AIRequestService:
                         "service_type": getattr(service, "service_type", "on-prem"),
                     },
                 )
+            # Re-assert admin context on the existing db session before updating.
+            # The session's transaction-local set_config values are cleared after
+            # each commit (create_ai_request, update_resolved_sensitivity,
+            # create_policy_audit_log). Using the db session directly — rather
+            # than a new session — avoids the asyncpg lazy-BEGIN race where
+            # set_config and the UPDATE land in different implicit transactions.
+            try:
+                await db.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
+                await update_ai_request_status(
+                    db,
+                    request_id=request_id,
+                    status="denied",
+                    completed_at=datetime.utcnow(),
+                    error_detail=f"Policy violation: {exc.policy_id} — {exc.description}",
+                )
+                logger.info(
+                    "[AIRequestService] request %s status set to 'denied' (policy=%s)",
+                    request_id, exc.policy_id,
+                )
+            except Exception as status_exc:
+                logger.error(
+                    "[AIRequestService] Failed to set status 'denied' for request %s: %s",
+                    request_id, status_exc,
+                )
             # Re-raise with PII info for the router/frontend
             raise PolicyViolationError(
                 policy_id=exc.policy_id,
@@ -441,20 +494,6 @@ class AIRequestService:
                     "service_type": getattr(service, "service_type", "on-prem"),
                 },
             )
-
-        # ── Build outbound messages ──
-        messages: List[Dict[str, str]] = [
-            {"role": m.role, "content": m.content} for m in body.payload.messages
-        ]
-
-        # ── Prompt security scan (Input Shield) ──
-        await self._run_prompt_security_scan(
-            request_id=request_id,
-            tenant_id=tenant_id,
-            messages=messages,
-            pii_count=pii_count,
-            detected_pii_types=detected_pii_types,
-        )
 
         return _PreFlightResult(
             request_id=request_id,
@@ -483,7 +522,7 @@ class AIRequestService:
         detected_pii_types: Optional[List[str]] = None,
     ) -> None:
         """Scan messages for prompt injection and log/block as needed."""
-        scan_result = self._prompt_security.scan_messages(messages)
+        scan_result = await self._prompt_security.scan_messages(messages)
 
         if scan_result.is_blocked:
             async with self._session_factory() as sec_session:

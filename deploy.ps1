@@ -163,7 +163,7 @@ kubectl wait --for=condition=ready pod -l app=kong-db -n ai-data --timeout=180s
 if ($LASTEXITCODE -ne 0) { throw "kong-db pods did not become ready in time." }
 
 Write-Host "Waiting for application layer..." -ForegroundColor Gray
-kubectl wait --for=condition=ready pod -l app=fastapi -n ai-application --timeout=240s
+kubectl wait --for=condition=ready pod -l app=fastapi -n ai-application --timeout=900s
 if ($LASTEXITCODE -ne 0) { throw "fastapi pods did not become ready in time." }
 kubectl wait --for=condition=ready pod -l app=intent-classifier -n ai-application --timeout=240s
 if ($LASTEXITCODE -ne 0) { throw "intent-classifier pods did not become ready in time." }

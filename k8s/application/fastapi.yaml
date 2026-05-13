@@ -4,7 +4,7 @@
 # The brain of the platform. Handles:
 #   - JWT validation
 #   - Intent classification → AI model routing
-#   - PII detection (spaCy NLP)
+#   - PII detection (Presidio + regex; spaCy still installed for get_nlp dependency)
 #   - OPA policy evaluation
 #   - Token quota enforcement (Redis)
 #   - Prompt injection scanning
@@ -40,6 +40,8 @@ data:
   INTENT_CLASSIFIER_ENABLED: "true"
   INTENT_CLASSIFIER_SHADOW: "false"
   INTENT_TAXONOMY_PATH: "/etc/intent-taxonomy/intent_labels_v1.yaml"
+  # HuggingFace model cache (DistilBERT warm-up at startup)
+  HF_HOME: "/var/cache/huggingface"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -83,29 +85,39 @@ spec:
             - name: intent-taxonomy
               mountPath: /etc/intent-taxonomy
               readOnly: true
+            - name: hf-cache
+              mountPath: /var/cache/huggingface
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "250m"
+              memory: "1536Mi"
+              cpu: "500m"
             limits:
-              memory: "1Gi"
-              cpu: "1000m"
+              memory: "3Gi"
+              cpu: "2000m"
+          startupProbe:
+            tcpSocket:
+              port: 3000
+            periodSeconds: 15
+            failureThreshold: 60
           livenessProbe:
             tcpSocket:
               port: 3000
-            initialDelaySeconds: 40
+            initialDelaySeconds: 30
             periodSeconds: 20
             failureThreshold: 3
           readinessProbe:
             tcpSocket:
               port: 3000
-            initialDelaySeconds: 20
+            initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
       volumes:
         - name: intent-taxonomy
           configMap:
             name: intent-taxonomy-v1
+        - name: hf-cache
+          emptyDir:
+            sizeLimit: 3Gi
 ---
 # Service: Kong DP reaches FastAPI via this internal DNS name
 apiVersion: v1

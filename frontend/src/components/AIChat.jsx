@@ -230,20 +230,28 @@ const AIChat = ({
           }
         }
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: errMsg,
-            timestamp: new Date().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            isError: true,
-            detectedPiiTypes,
-            piiCount,
-          },
-        ]);
+        setMessages((prev) => {
+          const next = [...prev];
+          const stripUser =
+            response.status === 400 || response.status === 403;
+          if (stripUser && next[next.length - 1]?.role === "user") {
+            next.pop();
+          }
+          return [
+            ...next,
+            {
+              role: "assistant",
+              content: errMsg,
+              timestamp: new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              isError: true,
+              detectedPiiTypes,
+              piiCount,
+            },
+          ];
+        });
         return;
       }
 

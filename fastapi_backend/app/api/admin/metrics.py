@@ -51,16 +51,26 @@ async def get_dashboard_metrics(db: AsyncSession = Depends(get_db_with_user)) ->
     row_intent = res_intent.fetchone()
     top_intent = f"{row_intent.intent} (Top)" if row_intent else "N/A"
 
-    # 3. Security Events
-    # Blocked by Policy
-    query_blocked = select(func.count()).where(AIRequestRecord.status == "denied")
-    res_blocked = await db.execute(query_blocked)
-    blocked_count = res_blocked.scalar() or 0
+    # 3. Security Events (24h window, aligned with health totals)
+    query_policy_denied = select(func.count()).where(
+        AIRequestRecord.status == "denied",
+        AIRequestRecord.started_at >= yesterday,
+    )
+    res_policy_denied = await db.execute(query_policy_denied)
+    policy_denied_24h = res_policy_denied.scalar() or 0
+
+    query_prompt_blocked = select(func.count()).where(
+        AIRequestRecord.status == "blocked",
+        AIRequestRecord.started_at >= yesterday,
+    )
+    res_prompt_blocked = await db.execute(query_prompt_blocked)
+    prompt_injection_24h = res_prompt_blocked.scalar() or 0
 
     # PII Upgrades
     query_pii = select(func.count()).where(
         AIRequestRecord.sensitivity != AIRequestRecord.resolved_sensitivity,
-        AIRequestRecord.resolved_sensitivity != None
+        AIRequestRecord.resolved_sensitivity != None,
+        AIRequestRecord.started_at >= yesterday,
     )
     res_pii = await db.execute(query_pii)
     pii_upgrades = res_pii.scalar() or 0
@@ -123,14 +133,14 @@ async def get_dashboard_metrics(db: AsyncSession = Depends(get_db_with_user)) ->
             "top_intent": top_intent
         },
         "security": {
-            "blocked": blocked_count,
+            "blocked": policy_denied_24h,
             "pii_upgrades": pii_upgrades,
-            "prompt_injections": 0  # Placeholder, not natively tracked as injection enum yet
+            "prompt_injections": prompt_injection_24h,
         },
         "routing": {
             "cloud_percentage": round(cloud_pct, 1),
             "edge_percentage": round(edge_pct, 1),
-            "denied_pre_proxy": blocked_count  # Simple equivalent mapping
+            "denied_pre_proxy": policy_denied_24h,
         },
         "system": {
             "backend_latency_ms": avg_latency_ms,

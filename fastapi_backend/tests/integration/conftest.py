@@ -47,8 +47,7 @@ class FakeAIRequestService:
                 policy_id="pol-001",
                 description="High sensitivity blocked for this tenant",
                 results=[result],
-                original_sensitivity="LOW",
-                resolved_sensitivity="HIGH",
+                pii_count=1,
                 detected_pii_types=["EMAIL"],
             )
         if self.mode == "provider_error":

@@ -63,7 +63,7 @@ def test_policy_violation_returns_structured_403(app_client: Dict[str, Any]) -> 
     assert resp.status_code == 403
     detail = resp.json()["detail"]
     assert detail["policy_id"] == "pol-001"
-    assert detail["resolved_sensitivity"] == "HIGH"
+    assert detail["pii_count"] == 1
     assert detail["detected_pii_types"] == ["EMAIL"]
 
 
@@ -86,4 +86,6 @@ def test_prompt_security_violation_returns_403(app_client: Dict[str, Any]) -> No
     resp = client.post("/api/ai/request", json=_valid_payload())
 
     assert resp.status_code == 403
-    assert "security violation" in resp.json()["detail"].lower()
+    detail = resp.json()["detail"]
+    msg = detail["message"] if isinstance(detail, dict) else str(detail)
+    assert "security violation" in msg.lower()

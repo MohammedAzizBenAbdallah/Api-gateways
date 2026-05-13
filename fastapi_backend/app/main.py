@@ -36,7 +36,10 @@ from app.services.intent_cache_service import IntentCacheService
 from app.services.intent_mappings_service import IntentMappingsService
 from app.services.output_guard_service import OutputGuardService
 from app.services.policy_service import PolicyService
-from app.services.prompt_security_service import PromptSecurityService
+from app.services.prompt_security_service import (
+    InjectionClassifier,
+    PromptSecurityService,
+)
 from app.services.quota_service import QuotaService
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -51,7 +54,8 @@ quota_service = QuotaService(
     quotas_file=settings.quotas_file_path,
     redis_url=settings.redis_url
 )
-prompt_security_service = PromptSecurityService()
+injection_classifier = InjectionClassifier()
+prompt_security_service = PromptSecurityService(injection_classifier=injection_classifier)
 output_guard_service = OutputGuardService()
 
 register_tenant_orm_filters()
@@ -117,6 +121,12 @@ async def lifespan(app: FastAPI):
         # Sync in-memory cache from database
         await policy_service.sync_from_db(db)
         await prompt_security_service.reload_patterns(db)
+
+    # Load DistilBERT injection classifier off the event loop (CPU / disk bound).
+    _loop = asyncio.get_running_loop()
+    await _loop.run_in_executor(None, injection_classifier.load)
+    await _loop.run_in_executor(None, injection_classifier.score, "warmup")
+    logger.info("[Startup] InjectionClassifier load and warm-up complete")
 
     # Fail fast if required external dependencies (spaCy model) are missing.
     _ = get_nlp()

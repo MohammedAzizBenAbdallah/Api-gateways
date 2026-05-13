@@ -957,14 +957,15 @@ const AdminPortal = ({ token, onClose }) => {
 
               {/* Security Events */}
               <div style={{ border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "1.5rem", background: "rgba(239, 68, 68, 0.05)" }}>
-                <h3 style={{ color: "#f87171", marginBottom: "1rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>🛡️ Security Events</h3>
+                <h3 style={{ color: "#f87171", marginBottom: "0.35rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>🛡️ Security Events</h3>
+                <p style={{ color: "var(--text-dim)", fontSize: "0.75rem", marginBottom: "1rem" }}>Counts from the last 24 hours (same window as request health).</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-dim)" }}>Blocked by Policy</span>
+                    <span style={{ color: "var(--text-dim)" }}>Denied by Policy</span>
                     <span style={{ color: "#f87171", fontWeight: "bold" }}>{dashboardMetrics?.security?.blocked || 0}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-dim)" }}>Prompt Injections Detect</span>
+                    <span style={{ color: "var(--text-dim)" }}>Prompt Injection Blocks</span>
                     <span style={{ color: "var(--text-header)" }}>{dashboardMetrics?.security?.prompt_injections || 0}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -987,7 +988,7 @@ const AdminPortal = ({ token, onClose }) => {
                     <span style={{ color: "#60a5fa", fontWeight: "bold" }}>{dashboardMetrics?.routing?.edge_percentage || 0}%</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-dim)" }}>Denied Before Proxy</span>
+                    <span style={{ color: "var(--text-dim)" }}>Denied by Policy (pre-proxy)</span>
                     <span style={{ color: "#f87171" }}>{dashboardMetrics?.routing?.denied_pre_proxy || 0} requests</span>
                   </div>
                 </div>
@@ -1011,7 +1012,16 @@ const AdminPortal = ({ token, onClose }) => {
             </div>
             
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="dashboard-btn" onClick={fetchQuotaStatus}>🔄 Refresh Metrics</button>
+              <button
+                className="dashboard-btn"
+                type="button"
+                onClick={() => {
+                  fetchQuotaStatus();
+                  fetchDashboardMetrics();
+                }}
+              >
+                🔄 Refresh Metrics
+              </button>
             </div>
           </div>
         ) : activeTab === "mappings" ? (

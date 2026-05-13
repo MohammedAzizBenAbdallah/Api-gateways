@@ -405,3 +405,95 @@ spec:
       ports:
         - port: 6379
           protocol: TCP
+---
+# ── RULE 16: FastAPI egress — Redis, databases, OPA, internal services, DNS, external AI ──
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-fastapi-egress
+  namespace: ai-application
+  labels:
+    project: enterprise-ai-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: fastapi
+  policyTypes:
+    - Egress
+  egress:
+    # Redis in ai-data (quota tracking)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-data
+          podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    # Platform PostgreSQL in ai-data
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-data
+          podSelector:
+            matchLabels:
+              app: platform-db
+      ports:
+        - port: 5432
+          protocol: TCP
+    # OPA policy engine (same namespace)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: opa
+      ports:
+        - port: 8181
+          protocol: TCP
+    # Keycloak for JWT validation (same namespace)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: keycloak
+      ports:
+        - port: 8080
+          protocol: TCP
+    # Intent classifier (same namespace)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: intent-classifier
+      ports:
+        - port: 3010
+          protocol: TCP
+    # Kong admin API (ai-gateway namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-gateway
+          podSelector:
+            matchLabels:
+              app: kong-cp
+      ports:
+        - port: 8001
+          protocol: TCP
+    # DNS resolution (kube-system)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # External AI providers (Gemini, etc.) and Ollama on host
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 11434
+          protocol: TCP

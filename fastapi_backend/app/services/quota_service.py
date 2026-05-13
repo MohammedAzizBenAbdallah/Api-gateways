@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import yaml
 import redis.asyncio as redis
+from redis.exceptions import ConnectionError as RedisConnectionError, RedisError
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 
@@ -39,6 +40,8 @@ class QuotaService:
         """
         Check if the tenant has sufficient token quota in Redis.
         Returns True if allowed, False if limit exceeded.
+        Falls back to allowing the request when Redis is unreachable so a
+        transient cache outage does not block all AI traffic.
         """
         config = self.get_tenant_config(tenant_id)
         max_tokens = config.get("max_tokens", 0)
@@ -50,7 +53,15 @@ class QuotaService:
         today = datetime.utcnow().strftime("%Y-%m-%d")
         key = f"quota:tenant:{tenant_id}:{today}"
         
-        current_usage = await self._redis.get(key)
+        try:
+            current_usage = await self._redis.get(key)
+        except (RedisConnectionError, RedisError) as exc:
+            logger.warning(
+                "[QuotaService] Redis unavailable, allowing request for tenant=%s: %s",
+                tenant_id, exc,
+            )
+            return True
+
         if current_usage is None:
             return True
             
@@ -61,11 +72,17 @@ class QuotaService:
         today = datetime.utcnow().strftime("%Y-%m-%d")
         key = f"quota:tenant:{tenant_id}:{today}"
         
-        # Increment and set TTL if new key
-        pipe = self._redis.pipeline()
-        pipe.incrby(key, tokens)
-        pipe.expire(key, 86400 + 3600)  # 25 hours TTL
-        await pipe.execute()
+        try:
+            pipe = self._redis.pipeline()
+            pipe.incrby(key, tokens)
+            pipe.expire(key, 86400 + 3600)  # 25 hours TTL
+            await pipe.execute()
+        except (RedisConnectionError, RedisError) as exc:
+            logger.warning(
+                "[QuotaService] Redis unavailable, skipping usage increment for tenant=%s tokens=%d: %s",
+                tenant_id, tokens, exc,
+            )
+            return
         
         logger.debug("Incremented token usage for %s by %d", tenant_id, tokens)
 
@@ -77,7 +94,23 @@ class QuotaService:
         today = datetime.utcnow().strftime("%Y-%m-%d")
         key = f"quota:tenant:{tenant_id}:{today}"
         
-        current_usage_raw = await self._redis.get(key)
+        try:
+            current_usage_raw = await self._redis.get(key)
+        except (RedisConnectionError, RedisError) as exc:
+            logger.warning(
+                "[QuotaService] Redis unavailable for get_quota_status tenant=%s: %s",
+                tenant_id, exc,
+            )
+            return {
+                "tenant_id": tenant_id,
+                "max_tokens": max_tokens,
+                "used_tokens": 0,
+                "remaining_tokens": max_tokens,
+                "percent_used": 0.0,
+                "reset_period": config.get("reset_period", "daily"),
+                "redis_available": False,
+            }
+
         current_usage = int(current_usage_raw) if current_usage_raw else 0
         
         remaining = max(0, max_tokens - current_usage)
@@ -89,5 +122,5 @@ class QuotaService:
             "used_tokens": current_usage,
             "remaining_tokens": remaining,
             "percent_used": round(percent_used, 2),
-            "reset_period": config.get("reset_period", "daily")
+            "reset_period": config.get("reset_period", "daily"),
         }
