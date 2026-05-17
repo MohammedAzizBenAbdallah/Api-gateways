@@ -34,6 +34,12 @@ const AdminPortal = ({ token, onClose }) => {
   const [observabilitySubTab, setObservabilitySubTab] = useState("kong"); // kong, fastapi
   const [activeCategory, setActiveCategory] = useState("all"); // plugin marketplace category filter
 
+  // K8s: Grafana via Kong /grafana. Compose/dev: set VITE_GRAFANA_URL=http://localhost:3001
+  const grafanaEmbedBase = (
+    import.meta.env.VITE_GRAFANA_URL ||
+    `${typeof window !== "undefined" ? window.location.protocol : "http:"}//${typeof window !== "undefined" ? window.location.hostname : "localhost"}/grafana`
+  ).replace(/\/$/, "");
+
   // Form state
   const [formData, setFormData] = useState({
     intent_name: "",
@@ -1702,13 +1708,13 @@ const AdminPortal = ({ token, onClose }) => {
             </div>
             <div style={{ background: "var(--bg-card)", borderRadius: "16px", border: "1px solid var(--glass-border)", overflow: "hidden", height: "800px" }}>
               {observabilitySubTab === "kong" && (
-                <iframe src="http://localhost:3001/d/mY9p7dQmz?orgId=1&kiosk=tv&theme=dark" width="100%" height="100%" frameBorder="0" style={{ display: "block" }}></iframe>
+                <iframe src={`${grafanaEmbedBase}/d/mY9p7dQmz?orgId=1&kiosk=tv&theme=dark`} width="100%" height="100%" frameBorder="0" style={{ display: "block" }} title="Kong Edge Metrics"></iframe>
               )}
               {observabilitySubTab === "fastapi" && (
-                <iframe src="http://localhost:3001/d/2SEsuEZ4k?orgId=1&kiosk=tv&theme=dark" width="100%" height="100%" frameBorder="0" style={{ display: "block" }}></iframe>
+                <iframe src={`${grafanaEmbedBase}/d/2SEsuEZ4k?orgId=1&kiosk=tv&theme=dark`} width="100%" height="100%" frameBorder="0" style={{ display: "block" }} title="AI Platform Metrics"></iframe>
               )}
               {observabilitySubTab === "nextora_bi" && (
-                <iframe src="http://localhost:3001/d/nextora_bi_dashboard?orgId=1&kiosk=tv&theme=dark" width="100%" height="100%" frameBorder="0" style={{ display: "block" }}></iframe>
+                <iframe src={`${grafanaEmbedBase}/d/nextora_bi_dashboard?orgId=1&kiosk=tv&theme=dark`} width="100%" height="100%" frameBorder="0" style={{ display: "block" }} title="Business Analytics"></iframe>
               )}
             </div>
           </div>

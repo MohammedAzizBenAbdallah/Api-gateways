@@ -8,6 +8,10 @@ docker compose up -d --build
 
 No manual Grafana setup is required. Everything is Git-tracked and provisioned from YAML/JSON in this folder.
 
+## Host Ollama (chat latency)
+
+Pods reach the host Ollama API via `host.docker.internal:11434`. On Windows, **`deploy.ps1`** (run as Administrator on first setup) sets machine-level **`OLLAMA_KEEP_ALIVE=-1`** so models stay loaded after the first request. Verify with `ollama ps` after a chat message.
+
 ## What starts automatically
 
 - `prometheus` (`:9090`) - scrapes metrics, evaluates Prometheus alert rules
@@ -46,7 +50,19 @@ No manual Grafana setup is required. Everything is Git-tracked and provisioned f
 3. Prometheus scrapes both targets and evaluates alert rules. Active alerts go to Alertmanager.
 4. The global `http-log` plugin on `kong-dp` POSTs every request to `kong-logger:8888`, which writes a JSONL line and inserts an AWS-shaped row into `platform_permissions.api_usage_records`.
 5. Promtail tails the JSONL files and pushes them to Loki, parsing the JSON so `apiId`, `stage`, and `status` are searchable as labels.
-6. Grafana reads Prometheus, the `PlatformDB` Postgres datasource, Loki, and Alertmanager. The Admin Portal frontend embeds dashboards by UID.
+6. Grafana reads Prometheus, the `PlatformDB` Postgres datasource, Loki, and Alertmanager. The Admin Portal frontend embeds dashboards by UID (`iframe` URLs under `http://localhost:3001/`).
+
+### Kubernetes (`k8s/` manifests)
+
+Cluster Grafana listens on **container port 3000**, with `GF_SERVER_ROOT_URL` pointing at **`http://localhost:3000/grafana/`** when exposed via port-forward.
+
+The SPA’s **Admin Portal → Observability** iframes still use **`http://localhost:3001/...`** so they match Docker Compose. Forward the in-cluster Service to local **3001** (not 3000):
+
+```bash
+kubectl port-forward -n ai-monitoring svc/grafana 3001:3000
+```
+
+`start-ui.ps1` opens that forward. If you open Grafana at `localhost:3000` only, Compose-style embed URLs in the Admin Portal will stay blank until you add a second forward on 3001 or change the iframe URLs.
 
 ## Where do I look for X?
 
@@ -173,7 +189,7 @@ The Promtail pipeline parses JSONL fields and promotes `api_id`, `stage`, and `s
 1. Prometheus targets: <http://localhost:9090/targets> - all `UP`.
 2. Alertmanager: <http://localhost:9093>.
 3. Grafana: <http://localhost:3001>. Datasources: `Prometheus`, `PlatformDB`, `Alertmanager`, `Loki`.
-4. Admin Portal observability tab - panels populated.
+4. Admin Portal observability tab — panels populate when Grafana is reachable at **localhost:3001** (Compose, or K8s forward `3001:3000` — see **Kubernetes** note above).
 5. Throw a small load burst:
    ```bash
    docker run --rm --network apigatewaydemo_default williamyeh/wrk -t2 -c20 -d10s http://kong-dp:8000/api/healthz

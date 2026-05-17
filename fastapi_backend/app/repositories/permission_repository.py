@@ -42,6 +42,6 @@ async def check_tenant_service_permission_and_audit(
         intent=intent,
     )
     session.add(audit_log)
-    await session.commit()
+    await session.flush()
     return is_allowed
 

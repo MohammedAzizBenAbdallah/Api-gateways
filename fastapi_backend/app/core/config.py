@@ -53,7 +53,7 @@ class Settings(BaseSettings):
         description="Base URL e.g. http://intent-classifier:3010",
     )
     intent_classifier_timeout_seconds: float = Field(
-        default=0.25,
+        default=45.0,
         alias="INTENT_CLASSIFIER_TIMEOUT_SECONDS",
     )
     intent_classifier_enabled: bool = Field(default=True, alias="INTENT_CLASSIFIER_ENABLED")

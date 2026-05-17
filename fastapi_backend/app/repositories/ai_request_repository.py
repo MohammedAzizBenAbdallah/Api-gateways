@@ -39,7 +39,7 @@ async def create_ai_request(
         started_at=started_at,
     )
     session.add(record)
-    await session.commit()
+    await session.flush()
     await session.refresh(record)
     return record
 
@@ -71,11 +71,11 @@ async def update_resolved_sensitivity(
     request_id: str,
     resolved_sensitivity: str,
 ) -> None:
-    """Persist the resolved sensitivity classification."""
+    """Persist the resolved sensitivity classification (flush only; caller commits)."""
     await session.execute(
         update(AIRequestRecord)
         .where(AIRequestRecord.request_id == request_id)
         .values(resolved_sensitivity=resolved_sensitivity)
     )
-    await session.commit()
+    await session.flush()
 

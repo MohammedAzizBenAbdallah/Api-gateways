@@ -46,7 +46,7 @@ deploy: preflight build-local-images
 	$(KUBECTL) create configmap kong-deck-config --from-file=kong_final.yaml=gateway/kong_final.yaml -n ai-gateway --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	@echo "🔑 Generating Configuration ConfigMaps..."
 	$(KUBECTL) create configmap keycloak-realm --from-file=realm-export.json=keycloak/realm-export.json -n ai-application --dry-run=client -o yaml | $(KUBECTL) apply -f -
-	$(KUBECTL) create configmap prometheus-config --from-file=prometheus.yml=monitoring/prometheus.yml -n ai-monitoring --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	$(KUBECTL) create configmap prometheus-config --from-file=prometheus.yml=monitoring/prometheus.k8s.yml -n ai-monitoring --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	$(KUBECTL) apply -k k8s/
 	@echo ""
 	@echo "⏳ Waiting for databases to be ready..."

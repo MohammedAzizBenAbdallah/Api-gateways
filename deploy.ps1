@@ -9,6 +9,95 @@
 # references, and use imagePullPolicy: IfNotPresent or Always as appropriate.
 # ─────────────────────────────────────────────────────────────────────────────
 
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "ERROR: deploy.ps1 must be run as Administrator (required to set machine-level OLLAMA_KEEP_ALIVE)." -ForegroundColor Red
+    Write-Host "Right-click PowerShell and choose Run as administrator, then run .\deploy.ps1 again." -ForegroundColor Yellow
+    exit 1
+}
+
+$ollamaKeepAlive = [Environment]::GetEnvironmentVariable("OLLAMA_KEEP_ALIVE", "Machine")
+if ($ollamaKeepAlive -ne "-1") {
+    Write-Host "Configuring OLLAMA_KEEP_ALIVE=-1 (keep models loaded in memory)..." -ForegroundColor Yellow
+    [Environment]::SetEnvironmentVariable("OLLAMA_KEEP_ALIVE", "-1", "Machine")
+    $env:OLLAMA_KEEP_ALIVE = "-1"
+
+    Get-Process -Name "ollama*" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    $ollamaApp = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama app.exe"
+    if (Test-Path $ollamaApp) {
+        Start-Process -FilePath $ollamaApp -WindowStyle Hidden
+    } elseif (Get-Command ollama -ErrorAction SilentlyContinue) {
+        Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
+    } else {
+        $svc = Get-Service -Name "Ollama" -ErrorAction SilentlyContinue
+        if ($svc) {
+            Restart-Service -Name "Ollama" -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-Host "  Warning: Ollama not found; install Ollama on the host for local LLM routing." -ForegroundColor DarkYellow
+        }
+    }
+    Start-Sleep -Seconds 3
+    try {
+        $null = Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -UseBasicParsing -TimeoutSec 5
+        Write-Host "  Ollama API is reachable on :11434" -ForegroundColor Green
+    } catch {
+        Write-Host "  Warning: Ollama API not reachable yet at http://localhost:11434" -ForegroundColor DarkYellow
+    }
+} else {
+    Write-Host "OLLAMA_KEEP_ALIVE already set to -1 (models stay warm)." -ForegroundColor Gray
+}
+
+# Warm up models into memory regardless of whether OLLAMA_KEEP_ALIVE was just set or already configured
+Write-Host "Warming up Ollama models..." -ForegroundColor Yellow
+$requiredModels = @("llama3", "DeepSeek-Coder")
+$installedTags = @()
+try {
+    $installedTags = @(
+        (Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -TimeoutSec 5).models |
+            ForEach-Object { $_.name }
+    )
+} catch {
+    Write-Host "  Warning: Ollama API not reachable; skipping model warmup." -ForegroundColor DarkYellow
+}
+
+foreach ($baseName in $requiredModels) {
+    $tag = $installedTags | Where-Object {
+        $_ -eq $baseName -or $_ -eq "${baseName}:latest" -or $_ -like "${baseName}:*"
+    } | Select-Object -First 1
+
+    if (-not $tag) {
+        Write-Host "  Warning: '$baseName' is not installed. Run: ollama pull $baseName" -ForegroundColor DarkYellow
+        continue
+    }
+
+    try {
+        Write-Host "  Loading $tag into memory (this can take a few minutes)..." -ForegroundColor Gray
+        $warmupBody = @{
+            model      = $tag
+            prompt     = "warmup"
+            stream     = $false
+            keep_alive = [int]-1
+        } | ConvertTo-Json -Compress
+
+        $null = Invoke-WebRequest -Uri "http://localhost:11434/api/generate" `
+            -Method POST `
+            -Body $warmupBody `
+            -ContentType "application/json" `
+            -UseBasicParsing `
+            -TimeoutSec 300
+
+        Write-Host "  $tag warmed up (keep_alive=-1)" -ForegroundColor Green
+    } catch {
+        Write-Host "  Warning: could not warm up $tag - $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
+}
+
+if (Get-Command ollama -ErrorAction SilentlyContinue) {
+    Write-Host "  Models currently loaded:" -ForegroundColor Gray
+    & ollama ps
+    Write-Host "  Note: if RAM is tight, Ollama may unload one model when loading the next." -ForegroundColor DarkGray
+}
+
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host " Deploying Enterprise AI Gateway to K8s"   -ForegroundColor Cyan
@@ -53,12 +142,12 @@ function Build-LocalImage {
 
         # Frontend Vite build arguments
         if ($ImageName -eq "api-gateways-frontend:latest") {
-
             $dockerArgs += @(
                 "--build-arg", "VITE_KEYCLOAK_URL=http://localhost/auth",
                 "--build-arg", "VITE_KEYCLOAK_REALM=newRealm",
                 "--build-arg", "VITE_KEYCLOAK_CLIENT_ID=myclient",
                 "--build-arg", "VITE_APP_URL=http://localhost",
+                "--build-arg", "VITE_GRAFANA_URL=http://localhost/grafana",
                 "--build-arg", "AI_ENDPOINT=https://localhost:8443/api/ai/orchestrate/"
             )
         }
@@ -69,7 +158,6 @@ function Build-LocalImage {
 
         # Automatically pass HF_TOKEN if found in the build directory
         $hfTokenPath = Join-Path $DockerfileDir ".hf_token"
-
         if (Test-Path $hfTokenPath) {
             $dockerArgs += @("--secret", "id=hf_token,src=$hfTokenPath")
         }
@@ -77,7 +165,6 @@ function Build-LocalImage {
         $dockerArgs += $DockerfileDir
 
         $buildOutput = & docker @dockerArgs 2>&1
-
         $buildText = ($buildOutput | Out-String)
 
         if ($buildText) {
@@ -92,7 +179,6 @@ function Build-LocalImage {
 
         $isTlsHandshakeTimeout = $buildText -match "TLS handshake timeout"
         $isRegistryMetadataFailure = $buildText -match "failed to resolve source metadata"
-
         $isRetryable = $isTlsHandshakeTimeout -or $isRegistryMetadataFailure
 
         if (-not $isRetryable -or $attempt -eq $maxAttempts) {
@@ -154,13 +240,13 @@ kubectl create configmap kong-plugin-tenant-restriction --from-file=gateway/plug
 kubectl create configmap kong-deck-config --from-file=kong_final.yaml=gateway/kong_final.yaml -n ai-gateway --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap grafana-dashboards --from-file=monitoring/grafana/dashboards/ -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap grafana-provisioning-dashboards --from-file=monitoring/grafana/provisioning/dashboards/ -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
-kubectl create configmap grafana-provisioning-datasources --from-file=monitoring/grafana/provisioning/datasources/ -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap grafana-provisioning-datasources --from-file=datasource.yml=monitoring/grafana/provisioning/datasources/datasource.k8s.yml -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
 
 # ── Step 4: Create Configuration ConfigMaps ───────────────────────────────
 Write-Host ""
 Write-Host "[4/7] Creating Configuration ConfigMaps..." -ForegroundColor Yellow
 kubectl create configmap keycloak-realm --from-file=realm-export.json=keycloak/realm-export.json -n ai-application --dry-run=client -o yaml | kubectl apply -f -
-kubectl create configmap prometheus-config --from-file=prometheus.yml=monitoring/prometheus.yml -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap prometheus-config --from-file=prometheus.yml=monitoring/prometheus.k8s.yml -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
 
 # ── Step 5: Create Kong mTLS certificates (if not exists) ────────────────
 Write-Host ""

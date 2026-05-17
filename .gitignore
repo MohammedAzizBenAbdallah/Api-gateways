@@ -1,3 +1,6 @@
+#rapport files:
+rapport_stage_extracted_images/
+rapport_stage.pdf
 # Python
 __pycache__/
 *.pyc

@@ -123,6 +123,22 @@ services:
           - http
           - https
 
+  # Grafana dashboards (Admin Portal observability iframes via /grafana)
+  - name: grafana
+    url: http://grafana.ai-monitoring.svc.cluster.local:3000/
+    connect_timeout: 60000
+    read_timeout: 60000
+    write_timeout: 60000
+    retries: 5
+    routes:
+      - name: grafana
+        paths:
+          - /grafana
+        strip_path: false
+        protocols:
+          - http
+          - https
+
 plugins:
   - name: pre-function
     enabled: false

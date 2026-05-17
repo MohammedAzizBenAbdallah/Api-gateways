@@ -20,6 +20,8 @@ if TYPE_CHECKING:  # pragma: no cover
 from sqlalchemy import text
 
 from app.core.exceptions import (
+    DomainError,
+    IntentNotFoundError,
     ProviderError,
     ServiceNotFoundError,
     TenantIdMissingError,
@@ -100,6 +102,95 @@ class AIRequestService:
         self._intent_classifier = intent_classifier_client or IntentClassifierClient()
 
     # ── Private helpers ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _sse_frame(payload: Dict[str, Any]) -> str:
+        return "data: " + json.dumps(payload) + "\n\n"
+
+    @staticmethod
+    def _domain_error_to_sse_payload(exc: DomainError) -> Dict[str, Any]:
+        """Map domain exceptions to SSE error shape consumed by the frontend."""
+        if isinstance(exc, PolicyViolationError):
+            return {
+                "error": {
+                    "message": str(exc),
+                    "status": 403,
+                    "detail": {
+                        "message": str(exc),
+                        "description": exc.description,
+                        "policy_id": exc.policy_id,
+                        "detected_pii_types": exc.detected_pii_types,
+                        "pii_count": exc.pii_count,
+                    },
+                }
+            }
+        if isinstance(exc, SecurityViolationError):
+            return {
+                "error": {
+                    "message": "Message blocked by AI Prompt Guard.",
+                    "status": 400,
+                    "detail": {
+                        "message": "Message blocked by AI Prompt Guard.",
+                        "pii_count": exc.pii_count,
+                        "detected_pii_types": exc.detected_pii_types,
+                    },
+                }
+            }
+        if isinstance(exc, QuotaExceededError):
+            return {
+                "error": {
+                    "message": str(exc),
+                    "status": 429,
+                    "detail": str(exc),
+                }
+            }
+        if isinstance(exc, TenantNotAuthorizedError):
+            return {
+                "error": {
+                    "message": str(exc),
+                    "status": 403,
+                    "detail": str(exc),
+                }
+            }
+        if isinstance(exc, TenantIdMissingError):
+            return {
+                "error": {
+                    "message": str(exc),
+                    "status": 401,
+                    "detail": str(exc),
+                }
+            }
+        if isinstance(exc, ServiceNotFoundError):
+            return {
+                "error": {
+                    "message": str(exc),
+                    "status": 404,
+                    "detail": str(exc),
+                }
+            }
+        if isinstance(exc, IntentNotFoundError):
+            return {
+                "error": {
+                    "message": str(exc),
+                    "status": 422,
+                    "detail": str(exc),
+                }
+            }
+        if isinstance(exc, ProviderError):
+            return {
+                "error": {
+                    "message": str(exc),
+                    "status": 502,
+                    "detail": str(exc),
+                }
+            }
+        return {
+            "error": {
+                "message": str(exc),
+                "status": 500,
+                "detail": str(exc),
+            }
+        }
 
     @staticmethod
     def _messages_to_classify_text(body: Any) -> str:
@@ -317,28 +408,46 @@ class AIRequestService:
         current_user: Dict[str, Any],
         body: Any,
         nlp: Any,
+        request_id: str | None = None,
     ) -> _PreFlightResult:
-        """Shared pre-flight pipeline: auth → quota → record → inspect → policy → security.
+        """Shared pre-flight pipeline: parallel inspect/classify/prompt → resolve → record → policy.
 
         Returns a _PreFlightResult with everything both submit paths need.
         Raises domain exceptions on any check failure.
         """
-        request_id = str(uuid.uuid4())
+        request_id = request_id or str(uuid.uuid4())
         raw_intent: str = body.intent
         environment: str = body.metadata.environment
 
         # ── Tenant validation ──
-        tenant_id = current_user.get("tenant_id") or "tenant-a" # Fallback for test/demo
+        tenant_id = current_user.get("tenant_id") or "tenant-a"  # Fallback for test/demo
         if not tenant_id:
             raise TenantIdMissingError()
 
-        # ── Intent classification (auto) or shadow logging ──
+        messages: List[Dict[str, str]] = [
+            {"role": m.role, "content": m.content} for m in body.payload.messages
+        ]
         classify_text = self._messages_to_classify_text(body)
         intent_name = raw_intent
         intent_mode = "manual"
         intent_confidence: float | None = None
         intent_source: str | None = None
         intent_taxonomy_version: str | None = None
+
+        run_classify = (
+            raw_intent == settings.intent_auto_token
+            or (
+                settings.intent_classifier_shadow
+                and self._intent_classifier.is_configured
+                and bool(classify_text)
+            )
+        )
+        classify_task_created = (
+            run_classify
+            and bool(classify_text)
+            and self._intent_classifier.is_configured
+        )
+
         logger.info(
             "Intent classification start request_id=%s tenant_id=%s provided_intent=%s mode=%s classifier_enabled=%s text_len=%s",
             request_id,
@@ -348,14 +457,40 @@ class AIRequestService:
             self._intent_classifier.is_configured,
             len(classify_text),
         )
+
+        # ── Phase A: classify + content inspect + prompt security (parallel) ──
+        classify_task = None
+        inspect_task = None
+        try:
+            async with asyncio.TaskGroup() as tg:
+                inspect_task = tg.create_task(
+                    self._content_inspector_service.inspect_content(body, nlp)
+                )
+                tg.create_task(
+                    self._run_prompt_security_scan(
+                        request_id=request_id,
+                        tenant_id=tenant_id,
+                        messages=messages,
+                        pii_count=None,
+                        detected_pii_types=None,
+                    )
+                )
+                if classify_task_created:
+                    classify_task = tg.create_task(
+                        self._intent_classifier.classify(
+                            text=classify_text,
+                            tenant_id=tenant_id,
+                            environment=environment,
+                        )
+                    )
+        except* SecurityViolationError as eg:
+            raise eg.exceptions[0] from eg
+
+        decision = classify_task.result() if classify_task is not None else None
+
         if raw_intent == settings.intent_auto_token:
             intent_mode = "auto"
-            if classify_text and self._intent_classifier.is_configured:
-                decision = await self._intent_classifier.classify(
-                    text=classify_text,
-                    tenant_id=tenant_id,
-                    environment=environment,
-                )
+            if decision is not None:
                 intent_name = decision.intent_label
                 intent_confidence = decision.confidence
                 intent_source = decision.source
@@ -382,12 +517,7 @@ class AIRequestService:
                     fallback_reason,
                     UNCLASSIFIED_LABEL,
                 )
-        elif settings.intent_classifier_shadow and self._intent_classifier.is_configured and classify_text:
-            decision = await self._intent_classifier.classify(
-                text=classify_text,
-                tenant_id=tenant_id,
-                environment=environment,
-            )
+        elif decision is not None:
             intent_mode = "shadow"
             intent_confidence = decision.confidence
             intent_source = decision.source
@@ -403,7 +533,9 @@ class AIRequestService:
                 decision.source,
             )
 
-        # ── Intent resolution ──
+        final_sensitivity, detected_pii_types, pii_count = inspect_task.result()
+
+        # ── Phase B: intent resolution, permission, quota, service lookup ──
         resolved_service_id = self._intent_cache_service.resolve_intent(intent_name)
         logger.info(
             "Intent resolution request_id=%s tenant_id=%s provided_intent=%s resolved_intent=%s resolved_service=%s mode=%s",
@@ -436,7 +568,7 @@ class AIRequestService:
         if service is None:
             raise ServiceNotFoundError(service_id=resolved_service_id)
 
-        # ── Persist tracking record ──
+        # ── Phase C: persist tracking record + resolved sensitivity ──
         try:
             await create_ai_request(
                 db,
@@ -453,30 +585,6 @@ class AIRequestService:
             logger.exception("Failed to persist request record: %s", exc)
             raise ProviderError("Failed to persist request record")
 
-        # ── Build outbound messages (shared by parallel inspectors) ──
-        messages: List[Dict[str, str]] = [
-            {"role": m.role, "content": m.content} for m in body.payload.messages
-        ]
-
-        # ── Content inspection + prompt security in parallel (TaskGroup cancels siblings on failure) ──
-        try:
-            async with asyncio.TaskGroup() as tg:
-                inspect_task = tg.create_task(
-                    self._content_inspector_service.inspect_content(body, nlp)
-                )
-                tg.create_task(
-                    self._run_prompt_security_scan(
-                        request_id=request_id,
-                        tenant_id=tenant_id,
-                        messages=messages,
-                        pii_count=None,
-                        detected_pii_types=None,
-                    )
-                )
-        except* SecurityViolationError as eg:
-            raise eg.exceptions[0] from eg
-
-        final_sensitivity, detected_pii_types, pii_count = inspect_task.result()
         if final_sensitivity.value != body.metadata.sensitivity.value:
             logger.warning(
                 "Sensitivity upgraded %s → %s for request %s",
@@ -490,8 +598,11 @@ class AIRequestService:
             request_id=request_id,
             resolved_sensitivity=final_sensitivity.value,
         )
+        # Single commit for create_ai_request + update_resolved_sensitivity +
+        # check_tenant_service_permission_and_audit (all flushed above).
+        await db.commit()
 
-        # ── Policy evaluation ──
+        # ── Phase D: policy evaluation (requires upgraded sensitivity from inspect) ──
         policy_context = {
             "sensitivity": final_sensitivity,
             "tenant": tenant_id,
@@ -518,10 +629,9 @@ class AIRequestService:
                 )
             # Re-assert admin context on the existing db session before updating.
             # The session's transaction-local set_config values are cleared after
-            # each commit (create_ai_request, update_resolved_sensitivity,
-            # create_policy_audit_log). Using the db session directly — rather
-            # than a new session — avoids the asyncpg lazy-BEGIN race where
-            # set_config and the UPDATE land in different implicit transactions.
+            # each commit. Using the db session directly — rather than a new
+            # session — avoids the asyncpg lazy-BEGIN race where set_config and
+            # the UPDATE land in different implicit transactions.
             try:
                 await db.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
                 await update_ai_request_status(
@@ -645,34 +755,40 @@ class AIRequestService:
         nlp: Any,
     ) -> Dict[str, Any]:
         """Stream SSE events for an AI request."""
-        pf = await self._run_pre_flight(
-            db=db, current_user=current_user, body=body, nlp=nlp,
-        )
+        request_id = str(uuid.uuid4())
 
-        outbound_model = pf.service.model_name
-        outbound_provider_url = pf.service.provider_url
-
-        # Capture pre-flight values for the closure
-        request_id = pf.request_id
-        tenant_id = pf.tenant_id
-        intent_name = pf.intent_name
-        resolved_service_id = pf.resolved_service_id
-        final_sensitivity = pf.final_sensitivity
-        detected_pii_types = pf.detected_pii_types
-        pii_count = pf.pii_count
-        messages = pf.messages
-        provided_intent = pf.provided_intent
-        intent_mode = pf.intent_mode
-        intent_confidence = pf.intent_confidence
-        intent_source = pf.intent_source
-        intent_taxonomy_version = pf.intent_taxonomy_version
-
-        # ── Initialization Pulse ──
-        # Send an immediate empty packet to trigger frontend typing dots.
-        # This prevents the UI from "hanging" while waiting for Ollama to load the model.
         async def _event_stream() -> AsyncIterator[str]:
-            yield "data: " + json.dumps({"token": "", "done": False}) + "\n\n"
-            
+            yield self._sse_frame({"status": "thinking"})
+
+            try:
+                pf = await self._run_pre_flight(
+                    db=db,
+                    current_user=current_user,
+                    body=body,
+                    nlp=nlp,
+                    request_id=request_id,
+                )
+            except DomainError as exc:
+                yield self._sse_frame(self._domain_error_to_sse_payload(exc))
+                return
+
+            outbound_model = pf.service.model_name
+            outbound_provider_url = pf.service.provider_url
+            tenant_id = pf.tenant_id
+            intent_name = pf.intent_name
+            resolved_service_id = pf.resolved_service_id
+            final_sensitivity = pf.final_sensitivity
+            detected_pii_types = pf.detected_pii_types
+            pii_count = pf.pii_count
+            messages = pf.messages
+            provided_intent = pf.provided_intent
+            intent_mode = pf.intent_mode
+            intent_confidence = pf.intent_confidence
+            intent_source = pf.intent_source
+            intent_taxonomy_version = pf.intent_taxonomy_version
+
+            yield self._sse_frame({"token": "", "done": False})
+
             first_token = True
             try:
                 if pf.service.provider_type == "gemini":

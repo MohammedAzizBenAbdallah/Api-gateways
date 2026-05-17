@@ -33,10 +33,16 @@ class IntentClassifierClient:
         self._base = (base_url or settings.intent_classifier_url or "").rstrip("/")
         self._timeout = timeout_seconds if timeout_seconds is not None else settings.intent_classifier_timeout_seconds
         self._enabled = enabled if enabled is not None else settings.intent_classifier_enabled
+        # Persistent connection — avoids a TCP handshake on every classify call.
+        self._client = httpx.AsyncClient(timeout=self._timeout)
 
     @property
     def is_configured(self) -> bool:
         return bool(self._base) and self._enabled
+
+    async def aclose(self) -> None:
+        """Release the underlying connection pool. Call from app lifespan finally."""
+        await self._client.aclose()
 
     async def classify(
         self,
@@ -67,10 +73,9 @@ class IntentClassifierClient:
             len(text),
         )
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.post(url, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await self._client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
         except Exception as exc:
             logger.warning("Intent classifier request failed; reason=http_error error=%s", exc)
             return ClassifierDecision(

@@ -60,22 +60,25 @@ spec:
                   key: POSTGRES_DB
           resources:
             requests:
-              memory: "64Mi"
+              memory: "256Mi"
               cpu: "50m"
             limits:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: "512Mi"
+              cpu: "250m"
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "kong", "-d", "kong"]
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "kong", "-d", "kong"]
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 5
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -162,21 +165,25 @@ spec:
                   key: POSTGRES_DB
           resources:
             requests:
-              memory: "64Mi"
+              memory: "256Mi"
               cpu: "50m"
             limits:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: "512Mi"
+              cpu: "250m"
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "keycloak", "-d", "keycloak"]
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "keycloak", "-d", "keycloak"]
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 5
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

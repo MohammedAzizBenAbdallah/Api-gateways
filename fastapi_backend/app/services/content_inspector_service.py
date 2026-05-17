@@ -9,6 +9,7 @@ never the matched raw substrings.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -243,7 +244,10 @@ class ContentInspectorService:
 
         try:
             analyzer = _get_presidio_analyzer()
-            results = analyzer.analyze(text=combined_text, language="en")
+            loop = asyncio.get_running_loop()
+            results = await loop.run_in_executor(
+                None, analyzer.analyze, combined_text, "en"
+            )
             for r in results:
                 et = str(r.entity_type)
                 _add_detected(et, 1)

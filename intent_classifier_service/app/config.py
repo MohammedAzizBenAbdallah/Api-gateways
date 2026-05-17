@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         default="http://host.docker.internal:11434/api/chat",
         alias="LLM_BASE_URL",
     )
-    llm_model: str = Field(default="llama3.2", alias="LLM_MODEL")
+    llm_model: str = Field(default="llama3", alias="LLM_MODEL")
     llm_timeout_seconds: float = Field(default=8.0, alias="LLM_TIMEOUT_SECONDS")
     cache_ttl_seconds: int = Field(default=3600, alias="INTENT_CLASSIFIER_CACHE_TTL_SECONDS")
     cache_max_entries: int = Field(default=10_000, alias="INTENT_CLASSIFIER_LRU_MAX")

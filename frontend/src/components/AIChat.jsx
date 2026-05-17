@@ -9,6 +9,11 @@ import QuotaStatus from "./QuotaStatus";
 import MessageGuardModal from "./MessageGuardModal";
 import { shouldAppendToken } from "../utils/streaming";
 import {
+  applyChatErrorToMessages,
+  parseChatError,
+  parseSseChatError,
+} from "../utils/chatErrors";
+import {
   AUTO_INTENT_OPTION,
   formatIntentConfidence,
   hasIntentClassificationDetails,
@@ -235,52 +240,16 @@ const AIChat = ({
       // ── Pre-stream error (auth failure, 422, 403) ─────────────────────
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        let errMsg = "Sorry, I'm having trouble connecting to the AI service.";
-
-        let detectedPiiTypes = null;
-        let piiCount = 0;
-
-        if (response.status === 400) {
-          errMsg = "Message blocked by AI Prompt Guard.";
-        } else if (errData.detail) {
-          if (typeof errData.detail === "object") {
-            // Handle structured error from the backend (403 blocks)
-            errMsg = errData.detail.message || JSON.stringify(errData.detail);
-            detectedPiiTypes = errData.detail.detected_pii_types || null;
-            piiCount = errData.detail.pii_count || 0;
-            
-            // Enhance the message if it's a policy/security block
-            if (errData.detail.description) {
-              errMsg = `Access Denied: ${errData.detail.description}`;
-            }
-          } else {
-            errMsg = errData.detail;
-          }
-        }
-
-        setMessages((prev) => {
-          const next = [...prev];
-          const stripUser =
-            response.status === 400 || response.status === 403;
-          if (stripUser && next[next.length - 1]?.role === "user") {
-            next.pop();
-          }
-          return [
-            ...next,
-            {
-              role: "assistant",
-              content: errMsg,
-              timestamp: new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              isError: true,
-              providedSensitivity: selectedSensitivity,
-              detectedPiiTypes,
-              piiCount,
-            },
-          ];
+        const parsed = parseChatError({
+          status: response.status,
+          detail: errData.detail,
         });
+        setMessages((prev) =>
+          applyChatErrorToMessages(prev, {
+            ...parsed,
+            selectedSensitivity,
+          }),
+        );
         return;
       }
 
@@ -333,19 +302,35 @@ const AIChat = ({
             continue;
           }
 
-          // ── Error event from server mid-stream ──────────────────────
-          if (data.error) {
+          if (data.status === "thinking") {
             addPlaceholder();
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                ...updated[updated.length - 1],
-                content: "Sorry, the stream was interrupted.",
-                isStreaming: false,
-                isError: true,
-              };
-              return updated;
-            });
+            continue;
+          }
+
+          // ── Error event from server (pre-flight SSE or mid-stream) ───
+          if (data.error) {
+            const parsed = parseSseChatError(data.error);
+            if (placeholderAdded) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = {
+                  ...updated[updated.length - 1],
+                  content: parsed.errMsg,
+                  isStreaming: false,
+                  isError: true,
+                  detectedPiiTypes: parsed.detectedPiiTypes,
+                  piiCount: parsed.piiCount,
+                };
+                return updated;
+              });
+            } else {
+              setMessages((prev) =>
+                applyChatErrorToMessages(prev, {
+                  ...parsed,
+                  selectedSensitivity,
+                }),
+              );
+            }
             return;
           }
 

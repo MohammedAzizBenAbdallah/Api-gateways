@@ -14,15 +14,15 @@ LoadBalancer Service (port 80/443)
    │
    ▼
 ┌─────────────────── Namespace: ai-gateway ───────────────────────┐
-│  Kong Data Plane (3 pods, autoscales to 10)                     │
+│  Kong Data Plane (default 1 pod, HPA scales 1–3 on this cluster)  │
 │  → Validates JWT, Rate Limits, Routes traffic                   │
-│  Kong Control Plane (1 pod, internal Admin API only)            │
-│  Frontend (2 pods)                                              │
+│  Kong Control Plane (1 pod, internal Admin API only)              │
+│  Frontend (2 pods, nginx :80 — Vite build, not dev server)        │
 └─────────────────────────────┬───────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────── Namespace: ai-application ───────────────────┐
-│  FastAPI Backend (3 pods, autoscales to 10)                     │
+│  FastAPI Backend (default 1 pod, HPA scales 1–3)               │
 │  OPA Policy Engine (2 pods)                                     │
 │  Keycloak Identity Provider (1 pod)                             │
 │  Kong Logger (1 pod)                                            │
@@ -93,11 +93,11 @@ make status
 | `data/postgres-platform.yaml` | ai-data | Platform DB + PVC |
 | `data/databases.yaml` | ai-data | Kong DB + Keycloak DB + Redis |
 | `application/opa.yaml` | ai-application | OPA (2 replicas) + Rego policy |
-| `application/fastapi.yaml` | ai-application | FastAPI (3 replicas) + HPA |
-| `application/intent-classifier.yaml` | ai-application | Intent classifier (2 replicas + HPA) + taxonomy ConfigMap |
+| `application/fastapi.yaml` | ai-application | FastAPI (1 replica by default, HPA 1–3) + taxonomy mount + `PRESIDIO_SPACY_MODEL` |
+| `application/intent-classifier.yaml` | ai-application | Intent classifier (1 replica by default + HPA) + taxonomy ConfigMap |
 | `application/keycloak-and-logger.yaml` | ai-application | Keycloak + Kong Logger |
 | `gateway/kong-cp.yaml` | ai-gateway | Kong Control Plane |
-| `gateway/kong-dp.yaml` | ai-gateway | Kong Data Plane (3 replicas) + HPA |
+| `gateway/kong-dp.yaml` | ai-gateway | Kong Data Plane (1 replica by default, HPA 1–3); upstream targets **frontend:80** |
 | `frontend-and-monitoring.yaml` | ai-gateway / ai-monitoring | Frontend + Prometheus + Grafana |
 | `network-policies.yaml` | all | Zero-trust firewall rules |
 
@@ -139,8 +139,8 @@ make hpa
 make teardown
 ```
 
-Keycloak login for the app now goes through Kong at `http://localhost/auth` (no direct `localhost:8080` port-forward required for normal app auth flow).  
-If you need direct Keycloak admin/service access, use:
+End-user auth (Keycloak JS) should use **`http://localhost/auth`** through Kong; the frontend ConfigMap sets `VITE_KEYCLOAK_URL` and `VITE_APP_URL=http://localhost` so redirects stay on the gateway. You do **not** need a browser port-forward to Keycloak for normal login.  
+If you need direct Keycloak admin console or service calls to `8080`, use:
 
 ```bash
 kubectl port-forward -n ai-application svc/keycloak 8080:8080
@@ -196,6 +196,7 @@ Only these connections are explicitly allowed:
 | From | To | Port | Why |
 |---|---|---|---|
 | `kong-dp` | `fastapi` | 3000 | AI request routing |
+| `kong-dp` | `keycloak` | 8080 | `/auth` OAuth / OpenID through Kong |
 | `kong-dp` | `kong-logger` | 9999 | Access log shipping |
 | `fastapi` | `opa` | 8181 | Policy evaluation |
 | `fastapi` | `platform-db` | 5432 | Data persistence |
@@ -205,6 +206,9 @@ Only these connections are explicitly allowed:
 | `kong-logger` | `platform-db` | 5432 | Log archiving |
 | `prometheus` | `fastapi` | 3000 | Metrics scraping |
 | `prometheus` | `kong-dp` | 8100 | Kong metrics |
+| `prometheus` | `intent-classifier` | 3010 | Intent classifier metrics |
+| `grafana` | `prometheus` | 9090 | Dashboard queries |
+| `grafana` | `platform-db` | 5432 | Business Analytics (PostgreSQL) |
 
 **Any other connection is silently dropped at the kernel level.**
 
@@ -212,10 +216,14 @@ Only these connections are explicitly allowed:
 
 ## Autoscaling Behavior
 
-| Service | Min | Max | Scale Trigger |
+Default manifests use smaller min replica counts for single-node dev (Docker Desktop). **HPA** in `fastapi.yaml` and `kong-dp.yaml` scales **between 1 and 3** pods on CPU (and memory for FastAPI).
+
+| Service | Min (default HPA) | Max (default HPA) | Scale trigger (typical) |
 |---|---|---|---|
-| `fastapi` | 3 | 10 | CPU > 70% OR Memory > 80% |
-| `kong-dp` | 3 | 10 | CPU > 60% |
+| `fastapi` | 1 | 3 | CPU > 70% or memory > 80% |
+| `kong-dp` | 1 | 3 | CPU > 60% |
+
+For higher baseline replica counts, use the GitOps overlays under `k8s/gitops/overlays/` (`dev` / `staging` / `prod`).
 
 ---
 
@@ -249,9 +257,9 @@ k8s/
 ├── application/
 │   ├── opa.yaml                   ← Policy engine (2 replicas)
 │   ├── intent-classifier.yaml     ← Zero-shot intent service (2 replicas + HPA)
-│   ├── fastapi.yaml               ← AI backend (3 replicas + HPA)
+│   ├── fastapi.yaml               ← AI backend (default 1 replica + HPA 1–3)
 │   └── keycloak-and-logger.yaml   ← Identity + log receiver
 └── gateway/
     ├── kong-cp.yaml               ← Control Plane (1 replica)
-    └── kong-dp.yaml               ← Data Plane (3 replicas + HPA)
+    └── kong-dp.yaml               ← Data Plane (default 1 replica + HPA 1–3)
 ```

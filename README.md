@@ -14,7 +14,7 @@ The platform consists of several interconnected services working together to pro
 | **Keycloak** | 8080 | Identity and Access Management (IAM) for authentication and RBAC. |
 | **FastAPI Backend** | 3000 | Core business logic and AI orchestration service. |
 | **Intent Classifier** | 3010 | HuggingFace zero-shot intent labels + Redis cache (`docker compose` service `intent-classifier`). |
-| **React Frontend** | 5173 | Modern Vite-based UI for interacting with the platform. |
+| **React Frontend** | 5173 *(Vite dev)* / **80** *(K8s nginx, behind Kong)* | See [k8s/README.md](k8s/README.md): use **http://localhost** through the Kong LoadBalancer for login; `5173` is only a dev/port-forward shortcut. |
 | **Ollama (host)** | 11434 | Local LLM runner (running on the host machine). |
 | **Hello World** | 8003 | Node.js test service for validation. |
 | **Kong Logger** | 9999 | Node.js receiver that turns Kong `http-log` payloads into AWS API Gateway-style access logs and persists them to JSONL + Postgres. |
@@ -84,10 +84,18 @@ Before starting, ensure you have the following installed on your machine:
    docker compose up -d
    ```
 
-5. **Access the application**:
+5. **Access the application** (Docker Compose defaults):
    - Frontend: [http://localhost:5173](http://localhost:5173)
    - Keycloak Admin: [http://localhost:8080](http://localhost:8080)
    - Kong Manager: [http://localhost:8002](http://localhost:8002)
+
+### Kubernetes (alternative)
+
+For the full enterprise stack on Kubernetes, use **`deploy.ps1`** (Windows) or **`make deploy`** — see [k8s/README.md](k8s/README.md). **Run `deploy.ps1` as Administrator on first setup** so it can set machine-level `OLLAMA_KEEP_ALIVE=-1` (keeps host Ollama models loaded for low first-token latency). In that layout:
+
+- End users open the app at **http://localhost** (Kong `LoadBalancer` → frontend on **port 80**, not Vite 5173).
+- OAuth / Keycloak discovery for the SPA is **http://localhost/auth** (routed by Kong), not direct `localhost:8080` in the browser.
+- Direct Keycloak admin still uses **port-forward**: `kubectl port-forward -n ai-application svc/keycloak 8080:8080`.
 
 ## Security Architecture
 
@@ -109,6 +117,7 @@ Requests are first inspected by the WAF for common exploits, then routed through
 ├── kong-logger/          # Node.js log server for audit trails
 ├── backend/scripts/      # PostgreSQL initialization scripts
 ├── docker-compose.yml    # Main orchestration file
+├── k8s/                  # Kubernetes manifests (see k8s/README.md)
 └── .env.example          # Template for environment variables
 ```
 

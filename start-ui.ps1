@@ -13,7 +13,7 @@ Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command 
 Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command title 'Kong Manager (8002)'; kubectl port-forward -n ai-gateway svc/kong-cp 8001:8001"
 
 # Forward Grafana
-Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command title 'Grafana (3000)'; kubectl port-forward -n ai-monitoring svc/grafana 3000:3000"
+Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command title 'Grafana (3001)'; kubectl port-forward -n ai-monitoring svc/grafana 3001:3000"
 
 # Forward keycloak port:
 Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit -Command title 'keycloak 80880'; kubectl port-forward -n ai-application svc/keycloak 8080:8080"
@@ -28,7 +28,7 @@ Write-Host "🖥️  Frontend UI:    http://localhost:5173 (via port 80)" -Foreg
 Write-Host "🔐  Keycloak Login: http://localhost/auth" -ForegroundColor Cyan
 Write-Host "🦍  Kong Manager:   http://localhost:8002" -ForegroundColor Cyan
 Write-Host "🦍  Kong Manager services:   http://localhost:8001" -ForegroundColor Cyan
-Write-Host "📊  Grafana:        http://localhost:3000" -ForegroundColor Cyan
+Write-Host "📊  Grafana (Admin Portal embeds): http://localhost:3001" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Optional admin direct access: kubectl port-forward -n ai-application svc/keycloak 8080:8080" -ForegroundColor Gray
 Write-Host "(Note: 3 minimized PowerShell windows were opened to keep the connections alive. Close them when you are done)." -ForegroundColor Gray

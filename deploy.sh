@@ -143,13 +143,13 @@ kubectl create configmap kong-plugin-tenant-restriction --from-file=gateway/plug
 kubectl create configmap kong-deck-config --from-file=kong_final.yaml=gateway/kong_final.yaml -n ai-gateway --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap grafana-dashboards --from-file=monitoring/grafana/dashboards/ -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap grafana-provisioning-dashboards --from-file=monitoring/grafana/provisioning/dashboards/ -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
-kubectl create configmap grafana-provisioning-datasources --from-file=monitoring/grafana/provisioning/datasources/ -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap grafana-provisioning-datasources --from-file=datasource.yml=monitoring/grafana/provisioning/datasources/datasource.k8s.yml -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
 
 # ── Step 4: Create Configuration ConfigMaps ───────────────────────────────
 echo -e ""
 echo -e "${YELLOW}[4/7] Creating Configuration ConfigMaps...${NC}"
 kubectl create configmap keycloak-realm --from-file=realm-export.json=keycloak/realm-export.json -n ai-application --dry-run=client -o yaml | kubectl apply -f -
-kubectl create configmap prometheus-config --from-file=prometheus.yml=monitoring/prometheus.yml -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap prometheus-config --from-file=prometheus.yml=monitoring/prometheus.k8s.yml -n ai-monitoring --dry-run=client -o yaml | kubectl apply -f -
 
 # ── Step 5: Create Kong mTLS certificates (if not exists) ────────────────
 echo -e ""

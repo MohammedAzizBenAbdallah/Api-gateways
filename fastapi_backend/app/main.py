@@ -24,12 +24,13 @@ from app.core.config import settings
 from app.core.middleware import verify_kong_header
 from app.core.security import get_current_user
 from app.core.logging import setup_logging
-from app.infrastructure.ai_provider.ollama_client import chat as _  # noqa: F401
+from app.infrastructure.ai_provider.ollama_client import chat as _, close_client as _close_ollama_client  # noqa: F401
 from app.infrastructure.db.session import AsyncSessionLocal
 from app.infrastructure.db.tenant_filters import register_tenant_orm_filters
 from app.infrastructure.nlp.spacy_loader import get_nlp
 from app.models.governance_policy import GovernancePolicy
 from app.schemas.policy import PolicyFileSchema, PolicySchema, PolicyConditionSchema
+from app.infrastructure.intent_classifier.client import IntentClassifierClient as _IntentClassifierClient
 from app.services.ai_request_service import AIRequestService
 from app.services.content_inspector_service import (
     ContentInspectorService,
@@ -60,6 +61,8 @@ quota_service = QuotaService(
 injection_classifier = InjectionClassifier()
 prompt_security_service = PromptSecurityService(injection_classifier=injection_classifier)
 output_guard_service = OutputGuardService()
+# Shared persistent HTTP client — avoids a fresh TCP handshake on every classify call.
+intent_classifier_client = _IntentClassifierClient()
 
 register_tenant_orm_filters()
 
@@ -73,6 +76,7 @@ def _build_ai_request_service() -> AIRequestService:
         prompt_security_service=prompt_security_service,
         output_guard_service=output_guard_service,
         session_factory=AsyncSessionLocal,
+        intent_classifier_client=intent_classifier_client,
     )
 
 
@@ -151,6 +155,8 @@ async def lifespan(app: FastAPI):
             await task
         except asyncio.CancelledError:
             pass
+        await intent_classifier_client.aclose()
+        await _close_ollama_client()
 
 
 def create_app() -> FastAPI:

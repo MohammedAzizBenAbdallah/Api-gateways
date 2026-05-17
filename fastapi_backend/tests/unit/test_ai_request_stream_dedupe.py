@@ -139,7 +139,7 @@ def _collect_payloads(events: List[str]) -> List[Dict[str, Any]]:
     return payloads
 
 
-async def _consume(service: AIRequestService) -> List[str]:
+async def _consume(service: AIRequestService) -> tuple[List[str], str]:
     result = await service.submit_stream(
         db=None,
         current_user={"tenant_id": "tenant-a"},
@@ -149,7 +149,7 @@ async def _consume(service: AIRequestService) -> List[str]:
     events: List[str] = []
     async for frame in result["stream"]:
         events.append(frame)
-    return events
+    return events, result["request_id"]
 
 
 # ── Tests ───────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ def test_submit_stream_concat_equals_source_text(
     service = _make_service()
     _patch_service(service, _pre_flight_result())
 
-    events = asyncio.run(_consume(service))
+    events, _ = asyncio.run(_consume(service))
     emitted = "".join(_collect_tokens(events))
 
     assert emitted == expected, (
@@ -204,7 +204,7 @@ def test_submit_stream_no_duplicate_chunk_prefix(
     service = _make_service()
     _patch_service(service, _pre_flight_result())
 
-    events = asyncio.run(_consume(service))
+    events, _ = asyncio.run(_consume(service))
     emitted = "".join(_collect_tokens(events))
 
     assert len(emitted) == len(big_token), (
@@ -227,7 +227,7 @@ def test_submit_stream_final_event_is_done(
     service = _make_service()
     _patch_service(service, _pre_flight_result())
 
-    events = asyncio.run(_consume(service))
+    events, request_id = asyncio.run(_consume(service))
     assert events, "stream produced no frames"
 
     last_data_lines = [ln for ln in events[-1].split("\n") if ln.startswith("data: ")]
@@ -236,7 +236,7 @@ def test_submit_stream_final_event_is_done(
 
     assert last_payload.get("done") is True
     assert last_payload.get("token") == ""
-    assert last_payload.get("request_id") == "req-test-1"
+    assert last_payload.get("request_id") == request_id
     assert last_payload.get("intent") == "general_chat"
     assert last_payload.get("provided_intent") == "auto"
     assert last_payload.get("intent_mode") == "auto"
@@ -258,7 +258,7 @@ def test_submit_stream_emits_tail_before_done_metadata(
     service = _make_service()
     _patch_service(service, _pre_flight_result())
 
-    events = asyncio.run(_consume(service))
+    events, _ = asyncio.run(_consume(service))
     payloads = _collect_payloads(events)
 
     done_payload = payloads[-1]

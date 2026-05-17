@@ -1,0 +1,241 @@
+﻿Running test 1 (manual) intent=general_chat...
+Running test 2 (manual) intent=code_generation...
+Running test 3 (manual) intent=summarization...
+Running test 4 (manual) intent=advanced_chat...
+Running test A (auto) intent=auto...
+Running test B (auto) intent=auto...
+Running test C (auto) intent=auto...
+Running test D (auto) intent=auto...
+{
+  "tests": [
+    {
+      "id": "1",
+      "phase": "manual",
+      "intent": "general_chat",
+      "prompt": "Say hello in one sentence.",
+      "expect_service": "ollama-llama3",
+      "measure": {
+        "ok": true,
+        "http_status": 200,
+        "first_byte_ms": 303.8,
+        "first_event_ms": 303.9,
+        "first_empty_token_ms": 2339.5,
+        "first_nonempty_token_ms": 35341.7,
+        "total_ms": 35373.7,
+        "token_chunks": 1,
+        "first_token_preview": "Hello!",
+        "nfr_first_event_under_3s": true,
+        "nfr_first_event_ms": 303.9,
+        "nfr_first_token_under_3s": false,
+        "nfr_measured_ms": 35341.7,
+        "error_body": null
+      },
+      "http_status": 200,
+      "ok": true,
+      "first_event_ms": 303.9,
+      "first_nonempty_token_ms": 35341.7,
+      "nfr_first_event_under_3s": true,
+      "nfr_model_ttft_under_3s": false,
+      "first_token_preview": "Hello!",
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:37:21 I [app.services.ai_request_service] Intent classification start request_id=9918bb88-a5ec-46db-9419-92f13b2871fb tenant_id=acme-corp provided_intent=general_chat mode=manual classifier_enabled=True text_len=32",
+        "22:37:23 I [app.services.ai_request_service] Intent resolution request_id=9918bb88-a5ec-46db-9419-92f13b2871fb tenant_id=acme-corp provided_intent=general_chat resolved_intent=general_chat resolved_service=ollama-llama3 mode=manual"
+      ]
+    },
+    {
+      "id": "2",
+      "phase": "manual",
+      "intent": "code_generation",
+      "prompt": "Write a Python function that reverses a string.",
+      "expect_service": "ollama-DeepSeekCoder",
+      "measure": {
+        "ok": true,
+        "http_status": 200,
+        "first_byte_ms": 777.2,
+        "first_event_ms": 777.3,
+        "first_empty_token_ms": 49362.7,
+        "first_nonempty_token_ms": 54669.9,
+        "total_ms": 76227.9,
+        "token_chunks": 287,
+        "first_token_preview": "Sure",
+        "nfr_first_event_under_3s": true,
+        "nfr_first_event_ms": 777.3,
+        "nfr_first_token_under_3s": false,
+        "nfr_measured_ms": 54669.9,
+        "error_body": null
+      },
+      "http_status": 200,
+      "ok": true,
+      "first_event_ms": 777.3,
+      "first_nonempty_token_ms": 54669.9,
+      "nfr_first_event_under_3s": true,
+      "nfr_model_ttft_under_3s": false,
+      "first_token_preview": "Sure",
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:37:23 I [app.services.ai_request_service] Intent resolution request_id=9918bb88-a5ec-46db-9419-92f13b2871fb tenant_id=acme-corp provided_intent=general_chat resolved_intent=general_chat resolved_service=ollama-llama3 mode=manual",
+        "22:38:02 I [app.services.ai_request_service] Intent classification start request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation mode=manual classifier_enabled=True text_len=53",
+        "22:38:51 I [app.services.ai_request_service] Intent resolution request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation resolved_intent=code_generation resolved_service=ollama-DeepSeekCoder mode=manual"
+      ]
+    },
+    {
+      "id": "3",
+      "phase": "manual",
+      "intent": "summarization",
+      "prompt": "Summarize in one sentence: Kubernetes runs containers across nodes.",
+      "expect_service": "ollama-llama3",
+      "measure": {
+        "ok": false,
+        "error": "IncompleteRead(0 bytes read)"
+      },
+      "http_status": null,
+      "ok": false,
+      "first_event_ms": null,
+      "first_nonempty_token_ms": null,
+      "nfr_first_event_under_3s": null,
+      "nfr_model_ttft_under_3s": null,
+      "first_token_preview": null,
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:38:51 I [app.services.ai_request_service] Intent resolution request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation resolved_intent=code_generation resolved_service=ollama-DeepSeekCoder mode=manual",
+        "22:39:21 I [app.services.ai_request_service] Intent classification start request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization mode=manual classifier_enabled=True text_len=73",
+        "22:39:24 I [app.services.ai_request_service] Intent resolution request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization resolved_intent=summarization resolved_service=ollama-llama3 mode=manual"
+      ]
+    },
+    {
+      "id": "4",
+      "phase": "manual",
+      "intent": "advanced_chat",
+      "prompt": "Explain the CAP theorem in formal terms.",
+      "expect_service": "gemini-cloud",
+      "measure": {
+        "ok": false,
+        "error": "Remote end closed connection without response"
+      },
+      "http_status": null,
+      "ok": false,
+      "first_event_ms": null,
+      "first_nonempty_token_ms": null,
+      "nfr_first_event_under_3s": null,
+      "nfr_model_ttft_under_3s": null,
+      "first_token_preview": null,
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:38:51 I [app.services.ai_request_service] Intent resolution request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation resolved_intent=code_generation resolved_service=ollama-DeepSeekCoder mode=manual",
+        "22:39:21 I [app.services.ai_request_service] Intent classification start request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization mode=manual classifier_enabled=True text_len=73",
+        "22:39:24 I [app.services.ai_request_service] Intent resolution request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization resolved_intent=summarization resolved_service=ollama-llama3 mode=manual"
+      ]
+    },
+    {
+      "id": "A",
+      "phase": "auto",
+      "intent": "auto",
+      "prompt": "Hey, how are you today?",
+      "expect_intent": "general_chat",
+      "expect_service": "ollama-llama3",
+      "measure": {
+        "ok": false,
+        "error": "Remote end closed connection without response"
+      },
+      "http_status": null,
+      "ok": false,
+      "first_event_ms": null,
+      "first_nonempty_token_ms": null,
+      "nfr_first_event_under_3s": null,
+      "nfr_model_ttft_under_3s": null,
+      "first_token_preview": null,
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:38:51 I [app.services.ai_request_service] Intent resolution request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation resolved_intent=code_generation resolved_service=ollama-DeepSeekCoder mode=manual",
+        "22:39:21 I [app.services.ai_request_service] Intent classification start request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization mode=manual classifier_enabled=True text_len=73",
+        "22:39:24 I [app.services.ai_request_service] Intent resolution request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization resolved_intent=summarization resolved_service=ollama-llama3 mode=manual"
+      ]
+    },
+    {
+      "id": "B",
+      "phase": "auto",
+      "intent": "auto",
+      "prompt": "Fix this bug: my React useEffect runs twice.",
+      "expect_intent": "code_generation",
+      "expect_service": "ollama-DeepSeekCoder",
+      "measure": {
+        "ok": false,
+        "error": "Remote end closed connection without response"
+      },
+      "http_status": null,
+      "ok": false,
+      "first_event_ms": null,
+      "first_nonempty_token_ms": null,
+      "nfr_first_event_under_3s": null,
+      "nfr_model_ttft_under_3s": null,
+      "first_token_preview": null,
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:38:51 I [app.services.ai_request_service] Intent resolution request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation resolved_intent=code_generation resolved_service=ollama-DeepSeekCoder mode=manual",
+        "22:39:21 I [app.services.ai_request_service] Intent classification start request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization mode=manual classifier_enabled=True text_len=73",
+        "22:39:24 I [app.services.ai_request_service] Intent resolution request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization resolved_intent=summarization resolved_service=ollama-llama3 mode=manual"
+      ]
+    },
+    {
+      "id": "C",
+      "phase": "auto",
+      "intent": "auto",
+      "prompt": "TL;DR this paragraph: Kubernetes schedules pods across nodes. Operators manage clusters with declarative configs.",
+      "expect_intent": "summarization",
+      "expect_service": "ollama-llama3",
+      "measure": {
+        "ok": false,
+        "error": "Remote end closed connection without response"
+      },
+      "http_status": null,
+      "ok": false,
+      "first_event_ms": null,
+      "first_nonempty_token_ms": null,
+      "nfr_first_event_under_3s": null,
+      "nfr_model_ttft_under_3s": null,
+      "first_token_preview": null,
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:38:51 I [app.services.ai_request_service] Intent resolution request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation resolved_intent=code_generation resolved_service=ollama-DeepSeekCoder mode=manual",
+        "22:39:21 I [app.services.ai_request_service] Intent classification start request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization mode=manual classifier_enabled=True text_len=73",
+        "22:39:24 I [app.services.ai_request_service] Intent resolution request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization resolved_intent=summarization resolved_service=ollama-llama3 mode=manual"
+      ]
+    },
+    {
+      "id": "D",
+      "phase": "auto",
+      "intent": "auto",
+      "prompt": "Give a rigorous proof sketch for why P != NP is hard to prove.",
+      "expect_intent": "advanced_chat",
+      "expect_service": "gemini-cloud",
+      "measure": {
+        "ok": false,
+        "error": "Remote end closed connection without response"
+      },
+      "http_status": null,
+      "ok": false,
+      "first_event_ms": null,
+      "first_nonempty_token_ms": null,
+      "nfr_first_event_under_3s": null,
+      "nfr_model_ttft_under_3s": null,
+      "first_token_preview": null,
+      "stream_error": null,
+      "error_body": null,
+      "log_snippet": [
+        "22:38:51 I [app.services.ai_request_service] Intent resolution request_id=f95ef185-0277-4299-8a0f-fd3e923ed36a tenant_id=acme-corp provided_intent=code_generation resolved_intent=code_generation resolved_service=ollama-DeepSeekCoder mode=manual",
+        "22:39:21 I [app.services.ai_request_service] Intent classification start request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization mode=manual classifier_enabled=True text_len=73",
+        "22:39:24 I [app.services.ai_request_service] Intent resolution request_id=342d697e-93da-4b8f-84a3-b94440cd4058 tenant_id=acme-corp provided_intent=summarization resolved_intent=summarization resolved_service=ollama-llama3 mode=manual"
+      ]
+    }
+  ]
+}
+
+Summary: 2/8 passed

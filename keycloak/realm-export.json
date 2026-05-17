@@ -794,7 +794,8 @@
         "acr.loa.map": "{}",
         "tls.client.certificate.bound.access.tokens": "false",
         "display.on.consent.screen": "false",
-        "token.response.type.bearer.lower-case": "false"
+        "token.response.type.bearer.lower-case": "false",
+        "access.token.lifespan": "600"
       },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
